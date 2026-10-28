@@ -26,7 +26,7 @@ Brown Dust 2（棕色尘埃2）的 BepInEx 加载器管理器 —— 傻瓜式�
 | 启动器 | `C:\ProgramData\Neowiz\Browndust2Starter\Browndust2Starter.exe` |
 | 写权限 | 目录可写，**不需要管理员权限** |
 | 版本子目录 | `Browndust2_10000001` 会随更新变化，不可硬编码 |
-| 现状 | 已存在他人安装：BepInEx 5.4.23.5 + Doorstop 4.5.0 + Bd2Probe.dll |
+| 现状 | 2026-10-29 已清理：早期探针（bd2-composer）留下的 BepInEx 5.4.23.5 + Doorstop 4.5.0 + Bd2Probe.dll 全部移除，`bd2mm status` 复核为「目录干净」 |
 
 ## 用法
 
