@@ -1,0 +1,21 @@
+<Project>
+
+  <!--
+    全仓库统一的程序集元数据。
+    放在根目录，src/ 下所有项目（含将来的 GUI）自动继承，无需在各自 csproj 里重复。
+    项目自身 csproj 中的同名属性会覆盖这里的值。
+  -->
+  <PropertyGroup>
+    <!-- 版本：CLI 阶段，GUI 未完成，标 0.x -->
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+
+    <!-- 署名：燧人氏，取「带来火种的人」之意 -->
+    <Authors>燧人氏</Authors>
+    <Company>燧人氏</Company>
+    <Product>BD2ModManager</Product>
+    <Copyright>Copyright (c) 2026 燧人氏</Copyright>
+  </PropertyGroup>
+
+</Project>
