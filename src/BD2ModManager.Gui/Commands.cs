@@ -31,12 +31,14 @@ public sealed class ComponentItem : INotifyPropertyChanged
     private readonly MainViewModel _owner;
     private readonly int _fileCount;
     private readonly long _size;
+    private readonly bool _loaderReady;
     private bool _loading;
     private bool _enabled;
 
-    internal ComponentItem(MainViewModel owner, ComponentInfo info)
+    internal ComponentItem(MainViewModel owner, ComponentInfo info, bool loaderReady)
     {
         _owner = owner;
+        _loaderReady = loaderReady;
         Name = info.Name;
         Source = info.Source;
         Missing = info.Missing;
@@ -57,7 +59,8 @@ public sealed class ComponentItem : INotifyPropertyChanged
         {
             var head = $"{_fileCount} 个文件 · {_size / 1024.0:F0} KB";
             if (Missing) return head + " · 文件已不在磁盘上";
-            return head + (Enabled ? " · 运行中加载" : " · 已禁用，不加载");
+            if (!_enabled) return head + " · 已禁用，不加载";
+            return _loaderReady ? head + " · 运行中加载" : head + " · 已启用，但 loader 未安装";
         }
     }
 
@@ -93,12 +96,14 @@ public sealed class ComponentItem : INotifyPropertyChanged
 public sealed class PluginItem : INotifyPropertyChanged
 {
     private readonly MainViewModel _owner;
+    private readonly bool _loaderReady;
     private bool _loading;
     private bool _enabled;
 
-    internal PluginItem(MainViewModel owner, PluginEntry entry)
+    internal PluginItem(MainViewModel owner, PluginEntry entry, bool loaderReady)
     {
         _owner = owner;
+        _loaderReady = loaderReady;
         DllPath = entry.DllPath;
         Name = Path.GetFileName(entry.DllPath);
         if (Name.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase))
@@ -107,11 +112,42 @@ public sealed class PluginItem : INotifyPropertyChanged
         _enabled = entry.Enabled;
     }
 
-    public string DllPath { get; }
+    public string DllPath { get; private set; }
     public string Name { get; }
     public long Size { get; }
 
-    public string Meta => $"{Size / 1024.0:F0} KB · {(Enabled ? "运行中加载" : "已禁用，不加载")}";
+    /// <summary>
+    /// 开关就是改文件名，成功后必须把路径一起改过来。
+    /// 否则下一次点击会拿旧路径判断，直接报「该插件当前已是禁用/启用状态」。
+    /// 这里只改路径、不重建列表——重建会让控件绑定重新挂一遍，反而点不动了。
+    /// </summary>
+    internal void SyncPathAfterToggle(bool enabled)
+    {
+        const string Suffix = ".disabled";
+        if (enabled)
+        {
+            if (DllPath.EndsWith(Suffix, StringComparison.OrdinalIgnoreCase))
+                DllPath = DllPath[..^Suffix.Length];
+        }
+        else if (!DllPath.EndsWith(Suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            DllPath += Suffix;
+        }
+    }
+
+    /// <summary>
+    /// 只描述「这个文件会不会被加载」，光有 loader 还不够：
+    /// loader 核心不在时，启用也只是把文件名改回来，游戏照样不认。
+    /// </summary>
+    public string Meta
+    {
+        get
+        {
+            var head = $"{Size / 1024.0:F0} KB";
+            if (!_enabled) return head + " · 已禁用，不加载";
+            return _loaderReady ? head + " · 运行中加载" : head + " · 已启用，但 loader 未安装";
+        }
+    }
 
     public bool Enabled
     {

@@ -2,6 +2,7 @@
 bin/
 obj/
 out/
+out-*/
 publish/
 
 # dist 是发布产物（65 MB 自包含 exe），不进版本库，走 GitHub Release

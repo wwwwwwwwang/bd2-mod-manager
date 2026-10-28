@@ -41,6 +41,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _logText = "";
     private string _confirmTitle = "";
     private string _confirmMessage = "";
+    private string _lastWarnStamp = "";
 
     public MainViewModel(Window window)
     {
@@ -263,7 +264,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var st = LoaderInspector.Inspect(_game, _store);
 
         _syncing = true;
-        ToggleOn = st.Present;
+        // 残留态虽然目录还在，但核心已删、游戏根本不会加载任何插件，
+        // 这时候开关必须是关的，否则用户会以为 MOD 还开着。
+        ToggleOn = st.CorePresent;
         _syncing = false;
 
         if (!st.Present)
@@ -299,12 +302,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         ShowCleanResidue = st.ResidueOnly;
 
-        foreach (var w in st.Warnings) Log($"提醒：{w}");
+        // 切开关会反复刷新状态，同样的提醒只写一次
+        var warnStamp = string.Join("\n", st.Warnings);
+        if (warnStamp != _lastWarnStamp)
+        {
+            _lastWarnStamp = warnStamp;
+            foreach (var w in st.Warnings) Log($"提醒：{w}");
+        }
 
         // 组件：本工具安装、可整包开关与移除的第三方插件
         var comps = _components.List(_game);
         Components.Clear();
-        foreach (var c in comps) Components.Add(new ComponentItem(this, c));
+        foreach (var c in comps) Components.Add(new ComponentItem(this, c, st.CorePresent));
 
         // 散装插件列表：组件内的 dll 由组件那一段管，这里不再重复出现
         var pluginsDir = Path.Combine(_game.Root, "BepInEx", "plugins");
@@ -312,7 +321,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         foreach (var p in st.Plugins)
         {
             if (ComponentManager.IsInside(pluginsDir, p.DllPath, comps)) continue;
-            Plugins.Add(new PluginItem(this, p));
+            Plugins.Add(new PluginItem(this, p, st.CorePresent));
         }
         NotifyPlugins();
 
@@ -518,7 +527,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var r = await Task.Run(() => _installer.SetPluginEnabled(game.Root, item.DllPath, enabled));
             WriteResult(r);
-            if (!r.Success) item.SetSilently(!enabled);
+            if (r.Success) item.SyncPathAfterToggle(enabled);
+            else item.SetSilently(!enabled);
         }
         catch (Exception ex)
         {

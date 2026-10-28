@@ -24,6 +24,7 @@ internal static class Program
         {
             ResidueDetection();
             ResidueCleanup();
+            TogglePathContract();
             FullInstallUninstallCycle(args.Length > 0 ? args[0] : null);
         }
         finally
@@ -102,9 +103,54 @@ internal static class Program
 
     // ---------------------------------------------------------------- 场景 3
 
+    /// <summary>
+    /// 开关是改文件名：.dll ↔ .dll.disabled。
+    /// 改名之后原来那条路径就作废了，调用方必须重新枚举，
+    /// 否则下一次切换会拿旧路径去判断，报「该插件当前已是禁用/启用状态」。
+    /// 0.4.1 界面上那串反复「失败」就是这么来的。
+    /// </summary>
+    private static void TogglePathContract()
+    {
+        Console.WriteLine("[3] 开关改名后旧路径必须失效");
+        var root = NewGameDir("toggle");
+        var store = NewStore();
+        var game = Game(root);
+
+        var plugin = Path.Combine(root, "BepInEx", "plugins", "Demo.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(plugin)!);
+        File.WriteAllText(plugin, "dll");
+
+        var installer = new LoaderInstaller(store);
+        var pluginsDir = Path.Combine(root, "BepInEx", "plugins");
+
+        var first = LoaderInspector.ListPlugins(Path.Combine(root, "BepInEx"));
+        Check("初始读到 1 个启用插件", first.Count == 1 && first[0].Enabled);
+        var stalePath = first[0].DllPath;
+
+        var off = installer.SetPluginEnabled(root, stalePath, false);
+        Check("禁用成功", off.Success, string.Join(" | ", off.Errors));
+        Check("文件已改名为 .disabled", File.Exists(plugin + ".disabled"));
+
+        var second = LoaderInspector.ListPlugins(Path.Combine(root, "BepInEx"));
+        Check("重新枚举得到禁用状态", second.Count == 1 && !second[0].Enabled);
+        Check("新路径指向 .disabled", second[0].DllPath.EndsWith(".disabled"));
+        Check("路径确实变了（这就是界面必须重新读的原因）", second[0].DllPath != stalePath);
+
+        var again = installer.SetPluginEnabled(root, stalePath, false);
+        Check("拿旧路径再禁用 → 报「已是禁用状态」", !again.Success,
+            string.Join(" | ", again.Errors));
+
+        var on = installer.SetPluginEnabled(root, second[0].DllPath, true);
+        Check("用新路径启用成功", on.Success, string.Join(" | ", on.Errors));
+        Check("文件回到 .dll", File.Exists(plugin) && !File.Exists(plugin + ".disabled"));
+        Console.WriteLine();
+    }
+
+    // ---------------------------------------------------------------- 场景 4
+
     private static void FullInstallUninstallCycle(string? packagePath)
     {
-        Console.WriteLine("[3] 完整流程：安装 → 模拟运行产生缓存 → 卸载");
+        Console.WriteLine("[4] 完整流程：安装 → 模拟运行产生缓存 → 卸载");
         var zip = packagePath ?? FindPackageZip();
         if (zip == null)
         {
