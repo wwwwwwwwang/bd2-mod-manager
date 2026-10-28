@@ -1,0 +1,28 @@
+# ---- 构建产物 ----
+bin/
+obj/
+out/
+publish/
+
+# dist 是发布产物（65 MB 自包含 exe），不进版本库，走 GitHub Release
+dist/
+
+# ---- .NET / Visual Studio / Rider ----
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+
+# ---- 本地工具与日志 ----
+*.log
+*.tmp
+*.bak
+~$*
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini

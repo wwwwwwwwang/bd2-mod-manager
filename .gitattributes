@@ -1,0 +1,16 @@
+# 统一换行符，避免 Windows / Linux 交叉构建产生 diff 噪声
+* text=auto eol=lf
+
+*.cs     text eol=lf
+*.csproj text eol=lf
+*.sln    text eol=lf
+*.md     text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.ini    text eol=lf
+
+# 二进制
+*.exe  binary
+*.dll  binary
+*.zip  binary
+*.png  binary
