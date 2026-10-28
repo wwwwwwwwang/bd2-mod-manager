@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "8.0.x"
 
@@ -59,7 +59,7 @@ jobs:
             --out "$RUNNER_TEMP/bd2-loader.zip"
 
       - name: 上传构建产物（仅调试用）
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bd2mm-${{ steps.ver.outputs.version }}-win-x64-dev
           path: out/bd2mm.exe
