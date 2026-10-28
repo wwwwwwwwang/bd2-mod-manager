@@ -7,6 +7,9 @@ publish/
 # dist 是发布产物（65 MB 自包含 exe），不进版本库，走 GitHub Release
 dist/
 
+# 构建时嵌进图形界面的 loader 包，由 scripts/package_loader.py 现生成
+src/BD2ModManager.Gui/Assets/bd2-loader.zip
+
 # ---- .NET / Visual Studio / Rider ----
 .vs/
 .vscode/

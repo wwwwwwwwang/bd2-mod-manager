@@ -1,0 +1,205 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:BD2ModManager.Gui"
+        x:Class="BD2ModManager.Gui.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="BD2ModManager"
+        Width="680" Height="690"
+        MinWidth="600" MinHeight="600"
+        Background="{StaticResource WindowBg}"
+        WindowStartupLocation="CenterScreen">
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ============ 顶栏 ============ -->
+    <Border Grid.Row="0" Background="{StaticResource CardBg}"
+            BorderBrush="{StaticResource CardBorder}" BorderThickness="0,0,0,1"
+            Padding="20,14">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Image Grid.Column="0" Source="/Assets/logo.png" Width="40" Height="40"
+               VerticalAlignment="Center" RenderOptions.BitmapInterpolationMode="HighQuality" />
+
+        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
+          <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="Bold" />
+          <TextBlock Text="{Binding Subtitle}" FontSize="11.5" Foreground="{StaticResource TextSecondary}" />
+        </StackPanel>
+
+        <Border Grid.Column="2" Background="#F1F3F5" CornerRadius="20" Padding="10,4"
+                VerticalAlignment="Center">
+          <TextBlock Text="{Binding Version}" FontSize="11.5" Foreground="{StaticResource TextSecondary}" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- ============ 主体 ============ -->
+    <ScrollViewer Grid.Row="1" Padding="18,16" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="12">
+
+        <!-- 未找到游戏时的引导 -->
+        <Border Classes="card" IsVisible="{Binding !HasGame}"
+                Background="#FFF8F1" BorderBrush="#F3D6BC">
+          <StackPanel Spacing="6">
+            <TextBlock Text="没找到 Brown Dust 2" FontSize="13.5" FontWeight="SemiBold" />
+            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
+                       Text="点下面的「选择目录」，选中里面有 BrownDust II.exe 的那个文件夹即可。" />
+            <Button Classes="primary" Content="选择游戏目录" HorizontalAlignment="Left"
+                    Margin="0,4,0,0" Command="{Binding BrowseCommand}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 游戏位置 -->
+        <Border Classes="card">
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="label" Text="游戏位置" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="link" Content="打开目录"
+                      Command="{Binding OpenGameFolderCommand}" IsVisible="{Binding HasGame}" />
+            </Grid>
+
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+              <Border Grid.Column="0" Background="#F6F7F9" BorderBrush="#E6E8EB" BorderThickness="1"
+                      CornerRadius="8" Padding="10,8">
+                <TextBlock Text="{Binding GamePath}" FontSize="12" TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding GamePath}" VerticalAlignment="Center" />
+              </Border>
+              <Button Grid.Column="1" Classes="ghost" Content="重新检测" Command="{Binding RescanCommand}" />
+              <Button Grid.Column="2" Classes="ghost" Content="选择目录" Command="{Binding BrowseCommand}" />
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding StatusText}" FontSize="12.5" FontWeight="SemiBold"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="{Binding StatusHint}" FontSize="11.5"
+                         Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- 主开关 -->
+        <Border Classes="card">
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="启用 Mod 支持"
+                       FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+
+            <ToggleButton Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                          Classes="switch"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding ToggleOn, Mode=TwoWay}"
+                          IsEnabled="{Binding CanToggle}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding ToggleHint}"
+                       FontSize="11.5" Foreground="{StaticResource TextSecondary}"
+                       TextWrapping="Wrap" Margin="0,6,16,0" />
+          </Grid>
+        </Border>
+
+        <!-- 游戏运行中的提示 -->
+        <Border Classes="card" IsVisible="{Binding GameRunning}"
+                Background="#FFF5F5" BorderBrush="#F2C9C9" Padding="14,10">
+          <TextBlock FontSize="12" Foreground="#B4392F" TextWrapping="Wrap"
+                     Text="游戏正在运行。安装或还原前请先完全退出游戏，否则文件被占用会失败。" />
+        </Border>
+
+        <!-- 选择加载器包（包缺失时出现） -->
+        <Border Classes="card" IsVisible="{Binding ShowPickPackage}"
+                Background="#FFF8F1" BorderBrush="#F3D6BC">
+          <StackPanel Spacing="6">
+            <TextBlock Text="缺加载器包" FontSize="13" FontWeight="SemiBold" />
+            <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
+                       Text="把 bd2-loader.zip 放到本程序旁边，或直接选中它。" />
+            <Button Classes="primary" Content="选择加载器包" HorizontalAlignment="Left"
+                    Margin="0,4,0,0" Command="{Binding PickPackageCommand}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 插件列表 -->
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="label" Text="插件" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Classes="muted" Text="{Binding PluginCountText}"
+                         VerticalAlignment="Center" />
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Plugins}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PluginItem">
+                  <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                    <StackPanel Grid.Column="0" Spacing="1">
+                      <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Meta}" Classes="muted" />
+                    </StackPanel>
+                    <ToggleButton Grid.Column="1" Classes="switch small"
+                                  VerticalAlignment="Center"
+                                  IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       IsVisible="{Binding HasNoPlugins}"
+                       Text="还没有插件。启用 Mod 支持后，把 .dll 放进游戏目录下的 BepInEx\plugins 即可，重启游戏生效。" />
+          </StackPanel>
+        </Border>
+
+        <!-- 日志 -->
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="label" Text="日志" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="link" Content="清空" Command="{Binding ClearLogCommand}" />
+            </Grid>
+            <TextBox x:Name="LogBox" Text="{Binding LogText}" IsReadOnly="True"
+                     AcceptsReturn="True" TextWrapping="Wrap"
+                     Height="132" FontSize="11.5"
+                     FontFamily="Cascadia Mono, Consolas, Noto Sans Mono, monospace"
+                     Background="#FAFBFC" BorderBrush="#E6E8EB" CornerRadius="8"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto" />
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ============ 底栏 ============ -->
+    <Border Grid.Row="2" Background="{StaticResource CardBg}"
+            BorderBrush="{StaticResource CardBorder}" BorderThickness="0,1,0,0"
+            Padding="20,9">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <ProgressBar Grid.Column="0" IsIndeterminate="True" Width="80" Height="3"
+                     VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+        <TextBlock Grid.Column="1" Text="{Binding BusyText}" FontSize="11.5"
+                   Foreground="{StaticResource TextSecondary}" Margin="10,0,0,0"
+                   VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+        <TextBlock Grid.Column="2" Classes="muted" VerticalAlignment="Center"
+                   Text="关闭开关即还原，不修改游戏本体文件" />
+      </Grid>
+    </Border>
+
+    <!-- ============ 确认浮层 ============ -->
+    <Border Grid.Row="0" Grid.RowSpan="3" ZIndex="100"
+            IsVisible="{Binding ConfirmVisible}" Background="#66000000">
+      <Border Background="White" CornerRadius="14" Padding="20" MaxWidth="440"
+              HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Border.BoxShadow>
+          <BoxShadows>0 8 28 0 #33000000</BoxShadows>
+        </Border.BoxShadow>
+        <StackPanel Spacing="12">
+          <TextBlock Text="{Binding ConfirmTitle}" FontSize="14.5" FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding ConfirmMessage}" FontSize="12"
+                     Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
+                     MaxWidth="400" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,4,0,0">
+            <Button Classes="ghost" Content="取消" Command="{Binding ConfirmCancelCommand}" />
+            <Button Classes="primary" Content="确认" Command="{Binding ConfirmYesCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+  </Grid>
+</Window>

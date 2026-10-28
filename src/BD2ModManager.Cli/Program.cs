@@ -5,7 +5,7 @@ Console.OutputEncoding = System.Text.Encoding.UTF8;
 var store = new StateStore();
 var installer = new LoaderInstaller(store);
 
-if (args.Length == 0) { Help(); return 0; }
+if (args.Length == 0) { Help(); Pause(); return 0; }
 
 try
 {
@@ -115,18 +115,25 @@ int CmdInstall(string[] a)
     var pkg = ArgValue(a, "--package");
     if (pkg == null)
     {
-        Console.WriteLine("缺少 --package <包目录>");
+        Console.WriteLine("缺少 --package <包目录或 zip>");
         return 1;
     }
-    if (!Directory.Exists(pkg)) { Console.WriteLine($"包目录不存在：{pkg}"); return 1; }
+
+    // 目录与 zip 都支持；zip 会解到临时目录，方法结束时清理
+    using var pkgHandle = LoaderPackage.OpenPath(pkg);
+    if (!pkgHandle.IsValid)
+    {
+        Console.WriteLine(pkgHandle.Problem ?? "包不可用。");
+        return 1;
+    }
 
     bool force = a.Contains("--force");
 
     Console.WriteLine($"目标   {game.Root}");
-    Console.WriteLine($"包     {Path.GetFullPath(pkg)}");
+    Console.WriteLine($"包     {Path.GetFullPath(pkg)}（loader {pkgHandle.Version ?? "未知"}）");
     Console.WriteLine();
 
-    var r = installer.Install(game, pkg, force);
+    var r = installer.Install(game, pkgHandle.Directory, force);
     Print(r);
     return r.Success ? 0 : 1;
 }
@@ -213,14 +220,23 @@ static int Unknown(string cmd)
     return 1;
 }
 
+static void Pause()
+{
+    // 双击 exe 时控制台会随进程退出立刻关闭，像「一闪而过」。这里停一下。
+    if (!Environment.UserInteractive || Console.IsInputRedirected) return;
+    Console.WriteLine();
+    Console.WriteLine("按任意键退出…");
+    try { Console.ReadKey(intercept: true); } catch { }
+}
+
 static int Help()
 {
     Console.WriteLine("""
-BD2ModManager — BD2 的 BepInEx 加载器管理工具
+BD2ModManager — BD2 的 BepInEx 加载器管理工具（命令行版）
 
   bd2mm find                              扫描并列出所有 BD2 安装
   bd2mm status  [游戏目录]                查看 loader 与插件状态
-  bd2mm install <游戏目录> --package <包目录> [--force]
+  bd2mm install <游戏目录> --package <包目录或 zip> [--force]
                                           安装 loader
   bd2mm uninstall <游戏目录>              卸载并还原
   bd2mm plugins <游戏目录>                列出插件
@@ -228,6 +244,8 @@ BD2ModManager — BD2 的 BepInEx 加载器管理工具
   bd2mm disable <游戏目录> <dll>          禁用插件
 
 不指定游戏目录时自动探测。
+
+日常使用请双击 BD2ModManager.exe（图形界面版），无需命令行。
 """);
     return 0;
 }

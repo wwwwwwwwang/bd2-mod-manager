@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "要发布的标签，例如 v0.1.0（留空时使用当前 ref）"
+        description: "要发布的标签，例如 v0.2.0（留空时使用当前 ref）"
         required: false
         type: string
 
@@ -61,33 +61,48 @@ jobs:
           fi
           echo "源码版本：$VER"
 
-      - name: 还原依赖
-        run: dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
+      - name: 组装 loader 包
+        run: |
+          python3 scripts/package_loader.py \
+            --cache-dir .cache/loader \
+            --out dist/bd2-loader.zip
+
+      - name: 嵌入 loader 包并还原依赖
+        run: |
+          mkdir -p src/BD2ModManager.Gui/Assets
+          cp dist/bd2-loader.zip src/BD2ModManager.Gui/Assets/bd2-loader.zip
+          dotnet restore src/BD2ModManager.Gui/BD2ModManager.Gui.csproj
+          dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
 
       - name: 编译（Release）
         run: |
-          dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
-            -c Release --no-restore
+          dotnet build src/BD2ModManager.Gui/BD2ModManager.Gui.csproj -c Release --no-restore
+          dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj -c Release --no-restore
 
-      - name: 发布 win-x64 单文件
+      - name: 发布图形界面（win-x64 单文件）
+        run: |
+          dotnet publish src/BD2ModManager.Gui/BD2ModManager.Gui.csproj \
+            -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -o out/gui
+
+      - name: 发布命令行（win-x64 单文件）
         run: |
           dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
             -c Release -r win-x64 --self-contained true \
             -p:PublishSingleFile=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
-            -o out
-
-      - name: 组装 loader 包
-        run: |
-          python3 scripts/package_loader.py \
-            --cache-dir .cache/loader \
-            --out "dist/bd2-loader.zip"
+            -p:EnableCompressionInSingleFile=true \
+            -o out/cli
 
       - name: 整理发布资产
         run: |
           VER="${{ steps.ver.outputs.version }}"
           mkdir -p dist
-          mv out/bd2mm.exe "dist/bd2mm-${VER}-win-x64.exe"
+          mv out/gui/BD2ModManager.exe "dist/BD2ModManager-${VER}-win-x64.exe"
+          mv out/cli/bd2mm.exe "dist/bd2mm-${VER}-win-x64.exe"
           mv dist/bd2-loader.zip "dist/bd2-loader-${VER}.zip"
           ls -lh dist/
 

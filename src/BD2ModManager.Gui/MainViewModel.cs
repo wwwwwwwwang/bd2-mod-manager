@@ -1,0 +1,568 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Windows.Input;
+using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using BD2ModManager.Core;
+
+namespace BD2ModManager.Gui;
+
+public sealed class MainViewModel : INotifyPropertyChanged
+{
+    private readonly Window _window;
+    private readonly StateStore _store = new();
+    private readonly LoaderInstaller _installer;
+    private readonly StringBuilder _log = new();
+
+    private GameInstall? _game;
+    private PackageHandle? _manualPackage;
+    private TaskCompletionSource<bool>? _confirm;
+    private DispatcherTimer? _watch;
+
+    private bool _syncing;
+    private bool _toggleOn;
+    private bool _isBusy;
+    private bool _hasGame;
+    private bool _gameRunning;
+    private bool _confirmVisible;
+    private bool _showPickPackage;
+
+    private string _busyText = "";
+    private string _statusText = "尚未检测";
+    private string _statusHint = "";
+    private string _toggleHint = "";
+    private string _logText = "";
+    private string _confirmTitle = "";
+    private string _confirmMessage = "";
+
+    public MainViewModel(Window window)
+    {
+        _window = window;
+        _installer = new LoaderInstaller(_store);
+
+        RescanCommand = new RelayCommand(() => _ = RescanAsync());
+        BrowseCommand = new RelayCommand(() => _ = BrowseAsync());
+        PickPackageCommand = new RelayCommand(() => _ = PickPackageAsync());
+        OpenGameFolderCommand = new RelayCommand(OpenGameFolder);
+        ClearLogCommand = new RelayCommand(() => LogText = "");
+        ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
+        ConfirmCancelCommand = new RelayCommand(() => _confirm?.TrySetResult(false));
+        MinimizeToTrayHint = "把 .dll 放进 BepInEx\\plugins 目录，重启游戏即可生效。";
+
+        StatusBrush = Brush.Parse("#9AA1AA");
+        Version = ReadVersion();
+    }
+
+    // ------------------------------------------------------------ 绑定属性
+
+    public string Version { get; }
+    public string Title => "BD2ModManager";
+    public string Subtitle => "Brown Dust 2 · 加载器与插件管理";
+    public string MinimizeToTrayHint { get; }
+
+    public ObservableCollection<PluginItem> Plugins { get; } = new();
+
+    public ICommand RescanCommand { get; }
+    public ICommand BrowseCommand { get; }
+    public ICommand PickPackageCommand { get; }
+    public ICommand OpenGameFolderCommand { get; }
+    public ICommand ClearLogCommand { get; }
+    public ICommand ConfirmYesCommand { get; }
+    public ICommand ConfirmCancelCommand { get; }
+
+    public string GamePath => _game?.Root ?? "尚未找到 Brown Dust 2";
+    public string GameMeta => _game == null
+        ? "支持 Steam / 官方启动器安装"
+        : $"Unity {_game.UnityVersion ?? "未识别"} · {_game.ExeName}";
+    public bool HasGame => _hasGame;
+    public bool HasNoPlugins => Plugins.Count == 0;
+    public string PluginCountText => Plugins.Count == 0 ? "无" : $"{Plugins.Count} 个";
+
+    public bool GameRunning
+    {
+        get => _gameRunning;
+        private set
+        {
+            if (!Set(ref _gameRunning, value)) return;
+            OnPropertyChanged(nameof(CanToggle));
+        }
+    }
+
+    public bool ShowPickPackage
+    {
+        get => _showPickPackage;
+        private set { if (Set(ref _showPickPackage, value)) OnPropertyChanged(nameof(CanToggle)); }
+    }
+
+    public string LogText { get => _logText; private set => Set(ref _logText, value); }
+
+    public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
+
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (!Set(ref _isBusy, value)) return;
+            OnPropertyChanged(nameof(CanToggle));
+        }
+    }
+
+    public string StatusText { get => _statusText; private set => Set(ref _statusText, value); }
+    public string StatusHint { get => _statusHint; private set => Set(ref _statusHint, value); }
+    public string ToggleHint { get => _toggleHint; private set => Set(ref _toggleHint, value); }
+    public IBrush StatusBrush { get; private set; }
+
+    public string ConfirmTitle { get => _confirmTitle; private set => Set(ref _confirmTitle, value); }
+    public string ConfirmMessage { get => _confirmMessage; private set => Set(ref _confirmMessage, value); }
+
+    public bool ConfirmVisible
+    {
+        get => _confirmVisible;
+        private set => Set(ref _confirmVisible, value);
+    }
+
+    public bool ToggleOn
+    {
+        get => _toggleOn;
+        set
+        {
+            if (!Set(ref _toggleOn, value)) return;
+            if (_syncing) return;
+            _ = ApplyToggleAsync(value);
+        }
+    }
+
+    public bool CanToggle => HasGame && !IsBusy && !GameRunning;
+
+    // ------------------------------------------------------------ 启动
+
+    public async Task InitializeAsync()
+    {
+        _watch = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background,
+            (_, _) => GameRunning = ProcessGuard.IsGameRunning());
+        _watch.Start();
+
+        Log($"BD2ModManager {Version} 启动");
+        Log($"程序目录：{AppContext.BaseDirectory}");
+        await RescanAsync(firstRun: true);
+    }
+
+    private async Task RescanAsync(bool firstRun = false)
+    {
+        if (IsBusy) return;
+        IsBusy = true;
+        BusyText = "正在查找游戏安装位置…";
+        try
+        {
+            GameInstall? found = null;
+
+            // 高级用法：手动指定（便携版 / 非标准路径）
+            var forced = Environment.GetEnvironmentVariable("BD2MM_GAME_ROOT");
+            if (!string.IsNullOrWhiteSpace(forced))
+            {
+                found = GameLocator.TryBuild(forced!, "环境变量");
+                if (found != null) Log($"按环境变量 BD2MM_GAME_ROOT 指定：{found.Root}");
+                else Log($"环境变量 BD2MM_GAME_ROOT 无效：{forced}");
+            }
+
+            if (found == null)
+            {
+                var list = await Task.Run(() => new GameLocator().Find());
+                if (list.Count > 0)
+                {
+                    found = list[0];
+                    Log($"找到 {list.Count} 个安装，使用最近修改的：{found.Root}");
+                    foreach (var g in list.Skip(1)) Log($"  另有：{g.Root}");
+                }
+            }
+
+            _game = found;
+            if (found == null && firstRun)
+                Log("未找到游戏。可点「选择目录」手动指定包含 BrownDust II.exe 的文件夹。");
+        }
+        catch (Exception ex)
+        {
+            Log($"查找游戏失败：{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+            RefreshStatus();
+        }
+    }
+
+    // ------------------------------------------------------------ 状态刷新
+
+    private void RefreshStatus()
+    {
+        var hadGame = HasGame;
+        _hasGame = _game != null;
+        if (hadGame != _hasGame) OnPropertyChanged(nameof(HasGame));
+        OnPropertyChanged(nameof(GamePath));
+        OnPropertyChanged(nameof(GameMeta));
+
+        if (_game == null)
+        {
+            _syncing = true;
+            ToggleOn = false;
+            _syncing = false;
+
+            StatusText = "未找到游戏";
+            StatusHint = "点「选择目录」指定安装位置";
+            ToggleHint = "找到游戏后才能启用";
+            StatusBrush = Brush.Parse("#D97706");
+            Plugins.Clear();
+            NotifyPlugins();
+            OnPropertyChanged(nameof(CanToggle));
+            return;
+        }
+
+        var st = LoaderInspector.Inspect(_game, _store);
+
+        _syncing = true;
+        ToggleOn = st.Present;
+        _syncing = false;
+
+        if (!st.Present)
+        {
+            StatusText = "未启用";
+            StatusHint = "游戏目录干净，可以安全安装";
+            ToggleHint = "打开后游戏将加载 BepInEx 插件；随时可关闭并还原。";
+            StatusBrush = Brush.Parse("#9AA1AA");
+        }
+        else if (st.ManagedByUs)
+        {
+            var door = string.IsNullOrWhiteSpace(st.DoorstopVersion) ? "" : $" · Doorstop {st.DoorstopVersion}";
+            StatusText = "已启用";
+            StatusHint = $"BepInEx {st.BepInExVersion ?? "未知"}{door} · 本工具安装";
+            ToggleHint = "关闭会删除本工具安装的文件，并还原被覆盖的原文件。";
+            StatusBrush = Brush.Parse("#16A34A");
+        }
+        else
+        {
+            StatusText = "已存在（他人安装）";
+            StatusHint = "检测到来源不明的 BepInEx，工具不会擅自删除";
+            ToggleHint = "可以覆盖安装（原文件会备份），但卸载只能还原本工具写入的部分。";
+            StatusBrush = Brush.Parse("#D97706");
+        }
+
+        foreach (var w in st.Warnings) Log($"提醒：{w}");
+
+        Plugins.Clear();
+        foreach (var p in st.Plugins) Plugins.Add(new PluginItem(this, p));
+        NotifyPlugins();
+
+        OnPropertyChanged(nameof(CanToggle));
+        OnPropertyChanged(nameof(StatusBrush));
+    }
+
+    private void NotifyPlugins()
+    {
+        OnPropertyChanged(nameof(HasNoPlugins));
+        OnPropertyChanged(nameof(PluginCountText));
+    }
+
+    // ------------------------------------------------------------ 安装 / 卸载
+
+    private async Task ApplyToggleAsync(bool on)
+    {
+        if (_game == null) { RefreshStatus(); return; }
+        if (on) await InstallAsync();
+        else await UninstallAsync();
+    }
+
+    private async Task InstallAsync()
+    {
+        var game = _game!;
+
+        if (ProcessGuard.IsGameRunning())
+        {
+            Log("游戏正在运行，请先完全退出游戏。");
+            GameRunning = true;
+            RefreshStatus();
+            return;
+        }
+
+        var st = LoaderInspector.Inspect(game, _store);
+        var force = false;
+
+        if (st.Present && !st.ManagedByUs)
+        {
+            var ok = await ConfirmAsync("目录里已有 BepInEx",
+                "检测到一份不是本工具安装的 BepInEx。继续会覆盖其中的同名文件（原文件先备份，关闭开关时还原）。是否继续？");
+            if (!ok) { RefreshStatus(); return; }
+            force = true;
+        }
+        else if (st.Present && st.ManagedByUs)
+        {
+            force = true;
+        }
+
+        var pkg = ResolvePackage();
+        if (pkg == null)
+        {
+            ShowPickPackage = true;
+            Log("没有找到加载器包。把 bd2-loader.zip 放到本程序旁边，或点「选择加载器包」。");
+            RefreshStatus();
+            return;
+        }
+
+        IsBusy = true;
+        BusyText = $"正在安装 BepInEx {pkg.Version ?? ""}…";
+        try
+        {
+            var dir = pkg.Directory;
+            var r = await Task.Run(() => _installer.Install(game, dir, force));
+            WriteResult(r);
+            if (r.Success)
+            {
+                ShowPickPackage = false;
+                Log("装好了。启动游戏即可生效。");
+            }
+            else
+            {
+                Log("安装未完成，游戏目录已回滚到操作前的状态。");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"安装出错：{ex.Message}");
+        }
+        finally
+        {
+            pkg.Dispose();
+            IsBusy = false;
+            BusyText = "";
+            RefreshStatus();
+        }
+    }
+
+    private async Task UninstallAsync()
+    {
+        var game = _game!;
+        var st = LoaderInspector.Inspect(game, _store);
+
+        if (!st.Present)
+        {
+            Log("未检测到 BepInEx，无需还原。");
+            RefreshStatus();
+            return;
+        }
+
+        if (!st.ManagedByUs)
+        {
+            await ConfirmAsync("无法自动还原",
+                "这份 BepInEx 不是本工具安装的，工具不会删除来源不明的文件。\n\n如需彻底移除，请手工删除 winhttp.dll、doorstop_config.ini、.doorstop_version 和 BepInEx 目录。");
+            RefreshStatus();
+            return;
+        }
+
+        if (ProcessGuard.IsGameRunning())
+        {
+            Log("游戏正在运行，请先完全退出游戏。");
+            GameRunning = true;
+            RefreshStatus();
+            return;
+        }
+
+        var ok = await ConfirmAsync("还原游戏目录",
+            "将删除本工具写入的文件，并把被覆盖的原文件还原回去。游戏目录会回到安装前的状态。");
+        if (!ok) { RefreshStatus(); return; }
+
+        IsBusy = true;
+        BusyText = "正在还原…";
+        try
+        {
+            var r = await Task.Run(() => _installer.Uninstall(game));
+            WriteResult(r);
+        }
+        catch (Exception ex)
+        {
+            Log($"还原出错：{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+            RefreshStatus();
+        }
+    }
+
+    public async Task SetPluginEnabledAsync(PluginItem item, bool enabled)
+    {
+        var game = _game;
+        if (game == null) { item.SetSilently(!enabled); return; }
+
+        try
+        {
+            var r = await Task.Run(() => _installer.SetPluginEnabled(game.Root, item.DllPath, enabled));
+            WriteResult(r);
+            if (!r.Success) item.SetSilently(!enabled);
+        }
+        catch (Exception ex)
+        {
+            Log($"切换插件失败：{ex.Message}");
+            item.SetSilently(!enabled);
+        }
+    }
+
+    // ------------------------------------------------------------ 选择目录 / 包
+
+    private async Task BrowseAsync()
+    {
+        var folders = await _window.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "选择 Brown Dust 2 安装目录（里面有 BrownDust II.exe）",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0) return;
+        var path = folders[0].TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        var g = GameLocator.TryBuild(path, "手动指定")
+                ?? GameLocator.ScanForGame(path, 2).FirstOrDefault();
+
+        if (g == null)
+        {
+            Log("这个目录里没有找到 BrownDust II.exe 和 BrownDust II_Data，请选到游戏主目录。");
+            return;
+        }
+
+        _game = g;
+        Log($"已指定游戏目录：{g.Root}");
+        RefreshStatus();
+    }
+
+    private async Task PickPackageAsync()
+    {
+        var files = await _window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择加载器包（bd2-loader.zip）",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("加载器包") { Patterns = new[] { "*.zip" } }
+            }
+        });
+
+        if (files.Count == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        _manualPackage?.Dispose();
+        _manualPackage = LoaderPackage.OpenPath(path);
+        if (!_manualPackage.IsValid)
+        {
+            Log($"这个包不能用：{_manualPackage.Problem}");
+            _manualPackage.Dispose();
+            _manualPackage = null;
+            return;
+        }
+
+        Log($"已选择加载器包：{Path.GetFileName(path)}（loader {_manualPackage.Version}）");
+        ShowPickPackage = false;
+    }
+
+    private PackageHandle? ResolvePackage()
+    {
+        if (_manualPackage is { IsValid: true }) return _manualPackage;
+
+        var h = LoaderPackage.AutoLocate(AppContext.BaseDirectory, typeof(MainViewModel).Assembly);
+        if (h != null)
+        {
+            Log($"加载器包：内嵌 / 随程序附带（loader {h.Version}）");
+            return h;
+        }
+        return null;
+    }
+
+    private void OpenGameFolder()
+    {
+        if (_game == null) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = _game.Root,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Log($"打开目录失败：{ex.Message}");
+        }
+    }
+
+    // ------------------------------------------------------------ 确认框
+
+    private async Task<bool> ConfirmAsync(string title, string message)
+    {
+        _confirm = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ConfirmTitle = title;
+        ConfirmMessage = message;
+        ConfirmVisible = true;
+
+        var ok = await _confirm.Task;
+        ConfirmVisible = false;
+        _confirm = null;
+        return ok;
+    }
+
+    // ------------------------------------------------------------ 日志
+
+    private void Log(string line)
+    {
+        _log.Append('[').Append(DateTime.Now.ToString("HH:mm:ss")).Append("] ").Append(line).Append('\n');
+        TrimLog();
+    }
+
+    private void WriteResult(OpResult r)
+    {
+        foreach (var l in r.Log) _log.Append("  · ").Append(l).Append('\n');
+        foreach (var e in r.Errors) _log.Append("  ✗ ").Append(e).Append('\n');
+        TrimLog();
+        Log(r.Success ? "完成。" : "失败。");
+    }
+
+    private void TrimLog()
+    {
+        if (_log.Length > 20000) _log.Remove(0, _log.Length - 16000);
+        LogText = _log.ToString();
+    }
+
+    // ------------------------------------------------------------ 基础设施
+
+    private static string ReadVersion()
+    {
+        var asm = typeof(MainViewModel).Assembly;
+        var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (!string.IsNullOrWhiteSpace(info))
+        {
+            var plus = info!.IndexOf('+');
+            if (plus > 0) info = info[..plus];
+            return "v" + info;
+        }
+        return "v" + (asm.GetName().Version?.ToString(3) ?? "0.0.0");
+    }
+
+    private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        OnPropertyChanged(name);
+        return true;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}

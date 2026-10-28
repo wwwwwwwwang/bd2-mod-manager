@@ -39,7 +39,8 @@ public static class LoaderInspector
             try
             {
                 var vi = FileVersionInfo.GetVersionInfo(bepDll);
-                bepVer = vi.ProductVersion ?? vi.FileVersion;
+                // ProductVersion 常带 "+<提交哈希>" 或 " (build ...)"，只取版本号本身
+                bepVer = NormalizeVersion(vi.ProductVersion) ?? NormalizeVersion(vi.FileVersion);
             }
             catch
             {
@@ -59,6 +60,14 @@ public static class LoaderInspector
             Plugins = ListPlugins(bepDir),
             Warnings = warnings
         };
+    }
+
+    /// <summary>去掉 "+hash"、" (build)" 之类的后缀，只留版本号。</summary>
+    private static string? NormalizeVersion(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return null;
+        var cut = v.IndexOfAny(new[] { '+', ' ' });
+        return cut > 0 ? v[..cut] : v;
     }
 
     public static List<PluginEntry> ListPlugins(string bepDir)

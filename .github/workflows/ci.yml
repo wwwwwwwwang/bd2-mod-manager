@@ -33,34 +33,59 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "版本号：$VER"
 
+      - name: 组装 loader 包
+        run: |
+          python3 scripts/package_loader.py \
+            --cache-dir .cache/loader \
+            --out dist/bd2-loader.zip
+          ls -lh dist/bd2-loader.zip
+
+      - name: 嵌入 loader 包
+        run: |
+          mkdir -p src/BD2ModManager.Gui/Assets
+          cp dist/bd2-loader.zip src/BD2ModManager.Gui/Assets/bd2-loader.zip
+
       - name: 还原依赖
-        run: dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
+        run: |
+          dotnet restore src/BD2ModManager.Core/BD2ModManager.Core.csproj
+          dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
+          dotnet restore src/BD2ModManager.Gui/BD2ModManager.Gui.csproj
 
       - name: 编译（Release）
-        run: dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj -c Release --no-restore
+        run: |
+          dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj -c Release --no-restore
+          dotnet build src/BD2ModManager.Gui/BD2ModManager.Gui.csproj -c Release --no-restore
 
-      - name: 发布 win-x64 单文件
+      - name: 发布图形界面（win-x64 单文件）
+        run: |
+          dotnet publish src/BD2ModManager.Gui/BD2ModManager.Gui.csproj \
+            -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -o out/gui
+
+      - name: 发布命令行（win-x64 单文件）
         run: |
           dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
             -c Release -r win-x64 --self-contained true \
             -p:PublishSingleFile=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
-            -o out
+            -p:EnableCompressionInSingleFile=true \
+            -o out/cli
 
       - name: 校验产物存在
         run: |
-          ls -lh out/bd2mm.exe
-          test -f out/bd2mm.exe || (echo "::error::未生成 bd2mm.exe"; exit 1)
-
-      - name: 校验 loader 打包脚本
-        run: |
-          python3 scripts/package_loader.py \
-            --cache-dir .cache/loader \
-            --out "$RUNNER_TEMP/bd2-loader.zip"
+          ls -lh out/gui/BD2ModManager.exe out/cli/bd2mm.exe
+          test -f out/gui/BD2ModManager.exe || (echo "::error::未生成图形界面 exe"; exit 1)
+          test -f out/cli/bd2mm.exe || (echo "::error::未生成 bd2mm.exe"; exit 1)
 
       - name: 上传构建产物（仅调试用）
         uses: actions/upload-artifact@v7
         with:
           name: bd2mm-${{ steps.ver.outputs.version }}-win-x64-dev
-          path: out/bd2mm.exe
+          path: |
+            out/gui/BD2ModManager.exe
+            out/cli/bd2mm.exe
+            dist/bd2-loader.zip
           retention-days: 7

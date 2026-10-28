@@ -1,0 +1,143 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BD2ModManager.Gui.App"
+             RequestedThemeVariant="Light">
+
+  <Application.Resources>
+    <Color x:Key="SystemAccentColor">#E2571E</Color>
+
+    <SolidColorBrush x:Key="AccentBrush" Color="#E2571E" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#C74A16" />
+    <SolidColorBrush x:Key="WindowBg" Color="#F4F5F7" />
+    <SolidColorBrush x:Key="CardBg" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="CardBorder" Color="#E6E8EB" />
+    <SolidColorBrush x:Key="TextPrimary" Color="#1B1F24" />
+    <SolidColorBrush x:Key="TextSecondary" Color="#6B7280" />
+    <SolidColorBrush x:Key="TextMuted" Color="#9AA1AA" />
+    <SolidColorBrush x:Key="TrackOff" Color="#D9DDE3" />
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Inter, sans-serif" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    </Style>
+
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{StaticResource CardBg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource CardBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+    </Style>
+
+    <Style Selector="TextBlock.muted">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+    </Style>
+
+    <!-- 次要按钮 -->
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="#F1F3F5" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="FontSize" Value="12.5" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#E4E7EB" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    </Style>
+    <Style Selector="Button.ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#D7DBE0" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    </Style>
+
+    <!-- 主按钮 -->
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="16,7" />
+      <Setter Property="FontSize" Value="12.5" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+
+    <!-- 文字按钮 -->
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="2,0" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource AccentHoverBrush}" />
+    </Style>
+
+    <!-- 大开关 -->
+    <Style Selector="ToggleButton.switch">
+      <Setter Property="Width" Value="54" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Grid>
+            <Border Name="Track" CornerRadius="15" Background="{StaticResource TrackOff}" />
+            <Border Name="Knob" Width="22" Height="22" CornerRadius="11" Background="White"
+                    HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0">
+              <Border.BoxShadow>
+                <BoxShadows>0 1 2 0 #33000000</BoxShadows>
+              </Border.BoxShadow>
+            </Border>
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+
+    <Style Selector="ToggleButton.switch:checked /template/ Border#Track">
+      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.switch:checked /template/ Border#Knob">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+    </Style>
+    <Style Selector="ToggleButton.switch:disabled">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+
+    <!-- 小开关（插件行） -->
+    <Style Selector="ToggleButton.small">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="22" />
+    </Style>
+    <Style Selector="ToggleButton.small /template/ Border#Track">
+      <Setter Property="CornerRadius" Value="11" />
+    </Style>
+    <Style Selector="ToggleButton.small /template/ Border#Knob">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Margin" Value="3,0,0,0" />
+    </Style>
+    <Style Selector="ToggleButton.small:checked /template/ Border#Knob">
+      <Setter Property="Margin" Value="0,0,3,0" />
+    </Style>
+  </Application.Styles>
+</Application>
