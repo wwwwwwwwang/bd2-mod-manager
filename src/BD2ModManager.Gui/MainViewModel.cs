@@ -17,6 +17,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly Window _window;
     private readonly StateStore _store = new();
     private readonly LoaderInstaller _installer;
+    private readonly ComponentManager _components;
     private readonly StringBuilder _log = new();
 
     private GameInstall? _game;
@@ -44,10 +45,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         _window = window;
         _installer = new LoaderInstaller(_store);
+        _components = new ComponentManager(_store);
 
         RescanCommand = new RelayCommand(() => _ = RescanAsync());
         BrowseCommand = new RelayCommand(() => _ = BrowseAsync());
         PickPackageCommand = new RelayCommand(() => _ = PickPackageAsync());
+        InstallComponentCommand = new RelayCommand(() => _ = InstallComponentAsync());
         OpenGameFolderCommand = new RelayCommand(OpenGameFolder);
         ClearLogCommand = new RelayCommand(() => LogText = "");
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
@@ -66,10 +69,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string MinimizeToTrayHint { get; }
 
     public ObservableCollection<PluginItem> Plugins { get; } = new();
+    public ObservableCollection<ComponentItem> Components { get; } = new();
 
     public ICommand RescanCommand { get; }
     public ICommand BrowseCommand { get; }
     public ICommand PickPackageCommand { get; }
+    public ICommand InstallComponentCommand { get; }
     public ICommand OpenGameFolderCommand { get; }
     public ICommand ClearLogCommand { get; }
     public ICommand ConfirmYesCommand { get; }
@@ -83,6 +88,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool HasNoPlugins => Plugins.Count == 0;
     public string PluginCountText => Plugins.Count == 0 ? "无" : $"{Plugins.Count} 个";
 
+    public bool HasNoComponents => Components.Count == 0;
+    public string ComponentCountText => Components.Count == 0 ? "无" : $"{Components.Count} 个";
+    public bool CanManageComponents => HasGame && !IsBusy && !GameRunning;
+
     public bool GameRunning
     {
         get => _gameRunning;
@@ -90,6 +99,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (!Set(ref _gameRunning, value)) return;
             OnPropertyChanged(nameof(CanToggle));
+            OnPropertyChanged(nameof(CanManageComponents));
         }
     }
 
@@ -110,6 +120,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (!Set(ref _isBusy, value)) return;
             OnPropertyChanged(nameof(CanToggle));
+            OnPropertyChanged(nameof(CanManageComponents));
         }
     }
 
@@ -219,8 +230,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ToggleHint = "找到游戏后才能启用";
             StatusBrush = Brush.Parse("#D97706");
             Plugins.Clear();
+            Components.Clear();
             NotifyPlugins();
             OnPropertyChanged(nameof(CanToggle));
+            OnPropertyChanged(nameof(CanManageComponents));
             return;
         }
 
@@ -255,11 +268,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         foreach (var w in st.Warnings) Log($"提醒：{w}");
 
+        // 组件：本工具安装、可整包开关与移除的第三方插件
+        var comps = _components.List(_game);
+        Components.Clear();
+        foreach (var c in comps) Components.Add(new ComponentItem(this, c));
+
+        // 散装插件列表：组件内的 dll 由组件那一段管，这里不再重复出现
+        var pluginsDir = Path.Combine(_game.Root, "BepInEx", "plugins");
         Plugins.Clear();
-        foreach (var p in st.Plugins) Plugins.Add(new PluginItem(this, p));
+        foreach (var p in st.Plugins)
+        {
+            if (ComponentManager.IsInside(pluginsDir, p.DllPath, comps)) continue;
+            Plugins.Add(new PluginItem(this, p));
+        }
         NotifyPlugins();
 
         OnPropertyChanged(nameof(CanToggle));
+        OnPropertyChanged(nameof(CanManageComponents));
         OnPropertyChanged(nameof(StatusBrush));
     }
 
@@ -267,6 +292,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(HasNoPlugins));
         OnPropertyChanged(nameof(PluginCountText));
+        OnPropertyChanged(nameof(HasNoComponents));
+        OnPropertyChanged(nameof(ComponentCountText));
     }
 
     // ------------------------------------------------------------ 安装 / 卸载
@@ -410,6 +437,100 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             Log($"切换插件失败：{ex.Message}");
             item.SetSilently(!enabled);
+        }
+    }
+
+    // ------------------------------------------------------------ 组件
+
+    private async Task InstallComponentAsync()
+    {
+        if (_game == null) { Log("还没有找到游戏。"); return; }
+        if (ProcessGuard.IsGameRunning())
+        {
+            Log("游戏正在运行，请先完全退出游戏。");
+            GameRunning = true;
+            return;
+        }
+
+        var folders = await _window.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "选择插件目录（含 .dll；也可选解压后 BepInEx 的上一层）",
+            AllowMultiple = false
+        });
+        if (folders.Count == 0) return;
+        var path = folders[0].TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        IsBusy = true;
+        BusyText = "正在安装组件…";
+        try
+        {
+            var game = _game;
+            var r = await Task.Run(() => _components.Install(game, path));
+            WriteResult(r);
+        }
+        catch (Exception ex)
+        {
+            Log($"安装组件出错：{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+            RefreshStatus();
+        }
+    }
+
+    public async Task SetComponentEnabledAsync(ComponentItem item, bool enabled)
+    {
+        var game = _game;
+        if (game == null) { item.SetSilently(!enabled); return; }
+
+        try
+        {
+            var r = await Task.Run(() => _components.SetEnabled(game, item.Name, enabled));
+            WriteResult(r);
+            if (!r.Success) item.SetSilently(!enabled);
+        }
+        catch (Exception ex)
+        {
+            Log($"切换组件失败：{ex.Message}");
+            item.SetSilently(!enabled);
+        }
+    }
+
+    public async Task RemoveComponentAsync(ComponentItem item)
+    {
+        var game = _game;
+        if (game == null) return;
+
+        if (ProcessGuard.IsGameRunning())
+        {
+            Log("游戏正在运行，请先完全退出游戏。");
+            GameRunning = true;
+            return;
+        }
+
+        var ok = await ConfirmAsync($"移除组件「{item.Name}」",
+            "会删除本工具安装的这些文件（被改动过的文件会保留）。下次启动游戏就不再加载它。");
+        if (!ok) return;
+
+        IsBusy = true;
+        BusyText = $"正在移除 {item.Name}…";
+        try
+        {
+            var r = await Task.Run(() => _components.Remove(game, item.Name));
+            WriteResult(r);
+        }
+        catch (Exception ex)
+        {
+            Log($"移除组件出错：{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+            RefreshStatus();
         }
     }
 

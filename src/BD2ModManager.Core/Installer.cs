@@ -186,6 +186,11 @@ public sealed class LoaderInstaller
         var backupDir = _store.BackupDirFor(game.Root);
         var skipped = 0;
 
+        // 0) 先清第三方组件：它们住在 BepInEx/plugins 下，不清掉目录永远清不干净
+        var comp = new ComponentManager(_store).RemoveAll(game);
+        foreach (var l in comp.Log) r.Info(l);
+        foreach (var e in comp.Errors) r.Error(e);
+
         // 1) 删除自己新增的文件
         foreach (var f in state.Added)
         {

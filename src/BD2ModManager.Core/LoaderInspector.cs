@@ -188,4 +188,38 @@ public sealed class StateStore
         var p = StatePathFor(gameRoot);
         if (File.Exists(p)) File.Delete(p);
     }
+
+    // ------------------------------------------------------------ 第三方组件记录
+
+    public string ComponentsPathFor(string gameRoot) =>
+        Path.Combine(StateDir, KeyFor(gameRoot) + ".components.json");
+
+    public ComponentState? TryLoadComponents(string gameRoot)
+    {
+        var p = ComponentsPathFor(gameRoot);
+        if (!File.Exists(p)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<ComponentState>(File.ReadAllText(p), JsonOpts);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public void SaveComponents(ComponentState state)
+    {
+        Directory.CreateDirectory(StateDir);
+        var p = ComponentsPathFor(state.GameRoot);
+        var tmp = p + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(state, JsonOpts));
+        File.Move(tmp, p, overwrite: true);
+    }
+
+    public void DeleteComponents(string gameRoot)
+    {
+        var p = ComponentsPathFor(gameRoot);
+        if (File.Exists(p)) File.Delete(p);
+    }
 }

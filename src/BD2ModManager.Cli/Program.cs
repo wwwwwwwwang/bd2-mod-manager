@@ -18,6 +18,11 @@ try
         "plugins" => CmdPlugins(args),
         "enable" => CmdToggle(args, true),
         "disable" => CmdToggle(args, false),
+        "components" => CmdComponents(args),
+        "component-install" => CmdComponentInstall(args),
+        "component-remove" => CmdComponentRemove(args),
+        "component-enable" => CmdComponentToggle(args, true),
+        "component-disable" => CmdComponentToggle(args, false),
         "help" or "-h" or "--help" => Help(),
         _ => Unknown(args[0])
     };
@@ -174,8 +179,74 @@ int CmdToggle(string[] a, bool enable)
     return r.Success ? 0 : 1;
 }
 
-// ------------------------------------------------------------------ 辅助
+int CmdComponents(string[] a)
+{
+    var game = ResolveGame(a, 1);
+    if (game == null) return 1;
 
+    var comps = new ComponentManager(store).List(game);
+    if (comps.Count == 0)
+    {
+        Console.WriteLine("没有由本工具安装的组件。");
+        Console.WriteLine("安装：bd2mm component-install <游戏目录> <插件目录或 zip>");
+        return 0;
+    }
+
+    foreach (var c in comps)
+    {
+        var state = c.Missing ? "缺失" : c.Enabled ? "启用" : "禁用";
+        Console.WriteLine($"[{state}] {c.Name}  {c.FileCount} 个文件 · {c.Size / 1024.0:F0} KB");
+        Console.WriteLine($"         {c.RelativeDir}  ← {c.Source}");
+    }
+    return 0;
+}
+
+int CmdComponentInstall(string[] a)
+{
+    if (a.Length < 3)
+    {
+        Console.WriteLine("用法：bd2mm component-install <游戏目录> <插件目录或 zip>");
+        return 1;
+    }
+    var game = ResolveGame(a, 1);
+    if (game == null) return 1;
+
+    var r = new ComponentManager(store).Install(game, a[2]);
+    Print(r);
+    return r.Success ? 0 : 1;
+}
+
+int CmdComponentRemove(string[] a)
+{
+    if (a.Length < 3)
+    {
+        Console.WriteLine("用法：bd2mm component-remove <游戏目录> <组件名>");
+        return 1;
+    }
+    var game = ResolveGame(a, 1);
+    if (game == null) return 1;
+
+    var r = new ComponentManager(store).Remove(game, a[2]);
+    Print(r);
+    return r.Success ? 0 : 1;
+}
+
+int CmdComponentToggle(string[] a, bool enable)
+{
+    if (a.Length < 3)
+    {
+        Console.WriteLine($"用法：bd2mm component-{(enable ? "enable" : "disable")} <游戏目录> <组件名>");
+        return 1;
+    }
+    var game = ResolveGame(a, 1);
+    if (game == null) return 1;
+
+    var r = new ComponentManager(store).SetEnabled(game, a[2], enable);
+    Print(r);
+    return r.Success ? 0 : 1;
+}
+
+// ------------------------------------------------------------------ 辅助
 GameInstall? ResolveGame(string[] a, int index)
 {
     if (a.Length > index && !a[index].StartsWith("--"))
@@ -242,6 +313,12 @@ BD2ModManager — BD2 的 BepInEx 加载器管理工具（命令行版）
   bd2mm plugins <游戏目录>                列出插件
   bd2mm enable  <游戏目录> <dll>          启用插件
   bd2mm disable <游戏目录> <dll>          禁用插件
+
+  bd2mm components <游戏目录>                     列出第三方组件
+  bd2mm component-install  <游戏目录> <目录或 zip>  安装组件
+  bd2mm component-remove   <游戏目录> <组件名>      移除组件（按记录校验哈希）
+  bd2mm component-enable   <游戏目录> <组件名>      启用组件
+  bd2mm component-disable  <游戏目录> <组件名>      禁用组件
 
 不指定游戏目录时自动探测。
 

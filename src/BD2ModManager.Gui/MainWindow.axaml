@@ -4,8 +4,8 @@
         x:Class="BD2ModManager.Gui.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="BD2ModManager"
-        Width="680" Height="690"
-        MinWidth="600" MinHeight="600"
+        Width="680" Height="760"
+        MinWidth="600" MinHeight="640"
         Background="{StaticResource WindowBg}"
         WindowStartupLocation="CenterScreen">
 
@@ -111,6 +111,43 @@
                        Text="把 bd2-loader.zip 放到本程序旁边，或直接选中它。" />
             <Button Classes="primary" Content="选择加载器包" HorizontalAlignment="Left"
                     Margin="0,4,0,0" Command="{Binding PickPackageCommand}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 第三方组件 -->
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <TextBlock Classes="label" Text="第三方组件" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ComponentCountText}"
+                         VerticalAlignment="Center" Margin="0,0,8,0" />
+              <Button Grid.Column="2" Classes="ghost" Content="安装组件…"
+                      Command="{Binding InstallComponentCommand}"
+                      IsEnabled="{Binding CanManageComponents}" />
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Components}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ComponentItem">
+                  <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,5">
+                    <StackPanel Grid.Column="0" Spacing="1">
+                      <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Meta}" Classes="muted" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="link" Content="移除"
+                            Command="{Binding RemoveCommand}" Margin="0,0,10,0"
+                            VerticalAlignment="Center" />
+                    <ToggleButton Grid.Column="2" Classes="switch small"
+                                  VerticalAlignment="Center"
+                                  IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       IsVisible="{Binding HasNoComponents}"
+                       Text="这里管理由本工具安装的第三方插件（如皮肤解锁）。选解压后的插件目录即可整包装卸；工具只删自己写过的文件，改过的一律保留。" />
           </StackPanel>
         </Border>
 
