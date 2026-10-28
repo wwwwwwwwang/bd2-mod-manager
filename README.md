@@ -244,7 +244,16 @@ dotnet run --project tests/BD2ModManager.SkinUnlock.Tests -c Release
 ```
 
 覆盖反射解析、读设计表、注入条目、补全列表、拦截点击、单一选中、服务器覆盖后回放、取消、回滚、撤销补丁，
-**31 项检查全部通过**，CI 每次都跑。没有覆盖的是真实游戏里的字段名与时机——这一层只能进游戏看日志：
+**32 项检查全部通过**。CI 跑在 GitHub Actions 上（`/tmp` 可执行），两处补丁是**真实挂载**到方法上跑完整条链路的：
+
+```
+log  补丁已挂上：查询服装皮肤 → CostumeDBInfo.GetConnectedPrestigeSkinDBInfos
+log  补丁已挂上：切换皮肤 → Database.SetSkin
+[OK] 两个补丁都挂到了真实方法上
+全部通过：32 项检查。
+```
+
+没有覆盖的是真实游戏里的字段名与时机——这一层只能进游戏看日志：
 插件启动时会按步骤把进度写进 `BepInEx\LogOutput.log`，解析不到会说清卡在哪一步（`Step`）和原因（`Problem`）。
 
 ## C1 包含什么
