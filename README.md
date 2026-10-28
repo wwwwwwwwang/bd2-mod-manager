@@ -54,6 +54,7 @@ bd2mm find                                         # 扫描所有 BD2 安装
 bd2mm status [游戏目录]                             # 查看 loader 与插件状态（只读）
 bd2mm install <游戏目录> --package <包目录或 zip> [--force] # 安装 loader
 bd2mm uninstall <游戏目录>                          # 卸载并还原
+bd2mm clean-residue <游戏目录>                      # 清掉 loader 残留（缓存与日志，不动插件）
 bd2mm plugins <游戏目录>                            # 列出插件
 bd2mm enable|disable <游戏目录> <dll>               # 插件开关
 
@@ -75,6 +76,8 @@ bd2mm component-enable|disable <游戏目录> <组件名>            # 整包开
 6. **装前查进程**：游戏运行时 `winhttp.dll` 写入会失败（`ERROR_SHARING_VIOLATION`）。
 7. 安装中途异常自动回滚。
 8. **组件同样清单驱动**：每个组件一个子目录，逐文件记哈希；移除时改过的一律保留。loader 自带的插件（如 ConfigurationManager）不归组件管，避免抢走它的文件。关闭「启用 Mod 支持」时先清组件、再删 loader，目录才能真正回到干净状态。
+9. **卸载连运行时产物一起清**：`cache`、`LogOutput.log`、loader 自带的两份 cfg 是 loader 启动时自己生成的，不在安装清单里，卸载要单独处理，否则目录会留个空壳。
+10. **残留不等于他人安装**：`winhttp.dll` 与 `BepInEx/core/BepInEx.dll` 都不在时，游戏根本加载不了插件，此时判为「仅剩残留」并允许一键清理；核心仍在就拒绝，必须走正常还原。
 
 ## 目录
 

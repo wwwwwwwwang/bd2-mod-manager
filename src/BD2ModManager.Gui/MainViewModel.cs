@@ -32,6 +32,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _gameRunning;
     private bool _confirmVisible;
     private bool _showPickPackage;
+    private bool _showCleanResidue;
 
     private string _busyText = "";
     private string _statusText = "尚未检测";
@@ -53,6 +54,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InstallComponentCommand = new RelayCommand(() => _ = InstallComponentAsync());
         InstallBuiltInCommand = new RelayCommand(() => _ = InstallBuiltInAsync());
         OpenGameFolderCommand = new RelayCommand(OpenGameFolder);
+        CleanResidueCommand = new RelayCommand(() => _ = CleanResidueAsync());
         ClearLogCommand = new RelayCommand(() => LogText = "");
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
         ConfirmCancelCommand = new RelayCommand(() => _confirm?.TrySetResult(false));
@@ -80,6 +82,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>把打包时嵌进来的解锁插件装成组件，用户不用另外找文件。</summary>
     public ICommand InstallBuiltInCommand { get; }
     public ICommand OpenGameFolderCommand { get; }
+    public ICommand CleanResidueCommand { get; }
     public ICommand ClearLogCommand { get; }
     public ICommand ConfirmYesCommand { get; }
     public ICommand ConfirmCancelCommand { get; }
@@ -104,6 +107,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (!Set(ref _gameRunning, value)) return;
             OnPropertyChanged(nameof(CanToggle));
             OnPropertyChanged(nameof(CanManageComponents));
+            OnPropertyChanged(nameof(CanCleanResidue));
         }
     }
 
@@ -112,6 +116,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => _showPickPackage;
         private set { if (Set(ref _showPickPackage, value)) OnPropertyChanged(nameof(CanToggle)); }
     }
+
+    /// <summary>loader 核心已不在、只剩缓存日志时，露出「清理残留」按钮。</summary>
+    public bool ShowCleanResidue
+    {
+        get => _showCleanResidue;
+        private set
+        {
+            if (!Set(ref _showCleanResidue, value)) return;
+            OnPropertyChanged(nameof(CanCleanResidue));
+        }
+    }
+
+    public bool CanCleanResidue => ShowCleanResidue && HasGame && !IsBusy && !GameRunning;
 
     public string LogText { get => _logText; private set => Set(ref _logText, value); }
 
@@ -125,6 +142,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (!Set(ref _isBusy, value)) return;
             OnPropertyChanged(nameof(CanToggle));
             OnPropertyChanged(nameof(CanManageComponents));
+            OnPropertyChanged(nameof(CanCleanResidue));
         }
     }
 
@@ -233,6 +251,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             StatusHint = "点「选择目录」指定安装位置";
             ToggleHint = "找到游戏后才能启用";
             StatusBrush = Brush.Parse("#D97706");
+            ShowCleanResidue = false;
             Plugins.Clear();
             Components.Clear();
             NotifyPlugins();
@@ -254,6 +273,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ToggleHint = "打开后游戏将加载 BepInEx 插件；随时可关闭并还原。";
             StatusBrush = Brush.Parse("#9AA1AA");
         }
+        else if (st.ResidueOnly)
+        {
+            // 核心已经不在，剩下的只是上次运行留下的缓存和日志。这不算「他人安装」。
+            StatusText = "仅剩残留";
+            StatusHint = "loader 已移除，只剩缓存与日志";
+            ToggleHint = "打开开关会重新装一份完整的 loader；也可以点下面「清理残留」把目录彻底还原。";
+            StatusBrush = Brush.Parse("#9AA1AA");
+        }
         else if (st.ManagedByUs)
         {
             var door = string.IsNullOrWhiteSpace(st.DoorstopVersion) ? "" : $" · Doorstop {st.DoorstopVersion}";
@@ -269,6 +296,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ToggleHint = "可以覆盖安装（原文件会备份），但卸载只能还原本工具写入的部分。";
             StatusBrush = Brush.Parse("#D97706");
         }
+
+        ShowCleanResidue = st.ResidueOnly;
 
         foreach (var w in st.Warnings) Log($"提醒：{w}");
 
@@ -324,7 +353,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var st = LoaderInspector.Inspect(game, _store);
         var force = false;
 
-        if (st.Present && !st.ManagedByUs)
+        if (st.ResidueOnly)
+        {
+            // 只剩自己上次留下的缓存和日志，不弹「他人安装」的警告，直接覆盖装回去
+            force = true;
+        }
+        else if (st.Present && !st.ManagedByUs)
         {
             var ok = await ConfirmAsync("目录里已有 BepInEx",
                 "检测到一份不是本工具安装的 BepInEx。继续会覆盖其中的同名文件（原文件先备份，关闭开关时还原）。是否继续？");
@@ -389,6 +423,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (!st.ManagedByUs)
         {
+            // 核心早就没了，剩下的缓存日志可以顺手清掉，不必让用户去手工删目录
+            if (st.ResidueOnly) { await CleanResidueCoreAsync(game, askConfirm: true); return; }
+
             await ConfirmAsync("无法自动还原",
                 "这份 BepInEx 不是本工具安装的，工具不会删除来源不明的文件。\n\n如需彻底移除，请手工删除 winhttp.dll、doorstop_config.ini、.doorstop_version 和 BepInEx 目录。");
             RefreshStatus();
@@ -417,6 +454,52 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             Log($"还原出错：{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+            RefreshStatus();
+        }
+    }
+
+    // ------------------------------------------------------------ 残留清理
+
+    /// <summary>「清理残留」按钮：只清缓存与日志，不动 plugins 里的插件。</summary>
+    private Task CleanResidueAsync()
+    {
+        if (_game == null) { RefreshStatus(); return Task.CompletedTask; }
+        return CleanResidueCoreAsync(_game, askConfirm: true);
+    }
+
+    private async Task CleanResidueCoreAsync(GameInstall game, bool askConfirm)
+    {
+        if (ProcessGuard.IsGameRunning())
+        {
+            Log("游戏正在运行，请先完全退出游戏再清理。");
+            GameRunning = true;
+            RefreshStatus();
+            return;
+        }
+
+        if (askConfirm)
+        {
+            var ok = await ConfirmAsync("清理残留",
+                "loader 的核心文件已经不在（winhttp.dll / BepInEx/core 都缺），游戏不会加载任何插件。\n\n" +
+                "这次只删 BepInEx 缓存、日志和 loader 自带的两份配置；plugins 目录里的插件会原样保留。");
+            if (!ok) { RefreshStatus(); return; }
+        }
+
+        IsBusy = true;
+        BusyText = "正在清理残留…";
+        try
+        {
+            var r = await Task.Run(() => _installer.CleanResidue(game));
+            WriteResult(r);
+        }
+        catch (Exception ex)
+        {
+            Log($"清理出错：{ex.Message}");
         }
         finally
         {

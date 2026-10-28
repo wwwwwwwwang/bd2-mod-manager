@@ -15,6 +15,7 @@ try
         "status" => CmdStatus(args),
         "install" => CmdInstall(args),
         "uninstall" => CmdUninstall(args),
+        "clean-residue" or "cleanresidue" => CmdCleanResidue(args),
         "plugins" => CmdPlugins(args),
         "enable" => CmdToggle(args, true),
         "disable" => CmdToggle(args, false),
@@ -74,6 +75,12 @@ int CmdStatus(string[] a)
     {
         Console.WriteLine("Loader    未安装");
         Console.WriteLine("          游戏目录干净，可以安全安装。");
+    }
+    else if (st.ResidueOnly)
+    {
+        Console.WriteLine("Loader    仅剩残留");
+        Console.WriteLine("          loader 核心已不在（缺 winhttp.dll 与 BepInEx/core），游戏不会加载任何插件。");
+        Console.WriteLine("          缓存与日志可用 GUI 的「清理残留」一键清掉。");
     }
     else
     {
@@ -152,6 +159,19 @@ int CmdUninstall(string[] a)
     Console.WriteLine();
 
     var r = installer.Uninstall(game);
+    Print(r);
+    return r.Success ? 0 : 1;
+}
+
+int CmdCleanResidue(string[] a)
+{
+    var game = ResolveGame(a, 1);
+    if (game == null) return 1;
+
+    Console.WriteLine($"目标   {game.Root}");
+    Console.WriteLine();
+
+    var r = installer.CleanResidue(game);
     Print(r);
     return r.Success ? 0 : 1;
 }
@@ -310,6 +330,7 @@ BD2ModManager — BD2 的 BepInEx 加载器管理工具（命令行版）
   bd2mm install <游戏目录> --package <包目录或 zip> [--force]
                                           安装 loader
   bd2mm uninstall <游戏目录>              卸载并还原
+  bd2mm clean-residue <游戏目录>          清掉 loader 残留（缓存与日志，不动插件）
   bd2mm plugins <游戏目录>                列出插件
   bd2mm enable  <游戏目录> <dll>          启用插件
   bd2mm disable <游戏目录> <dll>          禁用插件

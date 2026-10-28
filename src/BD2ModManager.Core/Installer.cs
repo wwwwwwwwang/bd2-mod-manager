@@ -237,6 +237,10 @@ public sealed class LoaderInstaller
             }
         }
 
+        // 2.5) 清运行时产物：缓存、日志、自带配置都是 loader 第一次启动时自己生成的，
+        //      不在这里删掉，BepInEx 目录就会留个空壳，下次检测还会被当成「他人安装」。
+        CleanRuntimeTraces(game, r);
+
         // 3) 清理空目录（深到浅）
         foreach (var d in state.Dirs.OrderByDescending(x => x.Length))
         {
@@ -264,12 +268,127 @@ public sealed class LoaderInstaller
         var remain = LoaderInspector.Inspect(game, _store);
         if (remain.Present)
         {
-            r.Info("注意：仍有 BepInEx 残留（可能是他人安装或配置目录），未做删除。");
+            r.Info("注意：BepInEx 目录里仍有非本工具写入的文件（多为手工放的插件），已原样保留。");
             skipped++;
         }
 
         r.Success = true;
         r.Info(skipped == 0 ? "卸载完成，已恢复到安装前状态。" : $"卸载完成，{skipped} 个文件被保留（详见上方日志）。");
+        return r;
+    }
+
+    // ---------------------------------------------------------------- 残留清理
+
+    /// <summary>loader 启动时自己生成的配置文件，名字固定，可以安全清理。</summary>
+    private static readonly string[] RuntimeConfigFiles =
+    {
+        "BepInEx/config/BepInEx.cfg",
+        "BepInEx/config/com.bepis.bepinex.configurationmanager.cfg"
+    };
+
+    /// <summary>
+    /// 清理 loader 的运行时产物（缓存、日志、自带配置）。
+    /// 只碰已知名字的文件：plugins 下的插件、config 下其他 cfg 一律不动。
+    /// </summary>
+    private int CleanRuntimeTraces(GameInstall game, OpResult r)
+    {
+        var bepDir = Path.Combine(game.Root, "BepInEx");
+        if (!Directory.Exists(bepDir)) return 0;
+
+        var removed = 0;
+
+        // 缓存：纯派生数据，删了游戏下次自己重建
+        var cache = Path.Combine(bepDir, "cache");
+        if (Directory.Exists(cache))
+        {
+            try
+            {
+                Directory.Delete(cache, recursive: true);
+                r.Info("清理缓存：BepInEx/cache");
+                removed++;
+            }
+            catch (Exception ex) { r.Error($"清理缓存失败：{ex.Message}"); }
+        }
+
+        // 日志（含轮转出的旧副本）
+        try
+        {
+            foreach (var f in Directory.EnumerateFiles(bepDir, "LogOutput.log*"))
+            {
+                try
+                {
+                    File.Delete(f);
+                    r.Info($"清理日志：BepInEx/{Path.GetFileName(f)}");
+                    removed++;
+                }
+                catch (Exception ex) { r.Error($"清理日志失败 {Path.GetFileName(f)}：{ex.Message}"); }
+            }
+        }
+        catch { }
+
+        foreach (var rel in RuntimeConfigFiles)
+        {
+            var p = Path.Combine(game.Root, rel.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(p)) continue;
+            try
+            {
+                File.Delete(p);
+                r.Info($"清理配置：{rel}");
+                removed++;
+            }
+            catch (Exception ex) { r.Error($"清理配置失败 {rel}：{ex.Message}"); }
+        }
+
+        RemoveEmptyTree(bepDir);
+        return removed;
+    }
+
+    /// <summary>自内向外删空目录；BepInEx 空了连它一起删。</summary>
+    private static void RemoveEmptyTree(string root)
+    {
+        if (!Directory.Exists(root)) return;
+        try
+        {
+            var dirs = Directory.GetDirectories(root, "*", SearchOption.AllDirectories)
+                                .OrderByDescending(x => x.Length);
+            foreach (var d in dirs)
+            {
+                try { if (!Directory.EnumerateFileSystemEntries(d).Any()) Directory.Delete(d); }
+                catch { }
+            }
+            if (!Directory.EnumerateFileSystemEntries(root).Any()) Directory.Delete(root);
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 清理纯残留：loader 核心（winhttp.dll / BepInEx/core）已经不在，目录里只剩缓存与日志。
+    /// 核心仍在时拒绝，那种情况必须走正常还原，免得把一份能用的 loader 拆坏。
+    /// </summary>
+    public OpResult CleanResidue(GameInstall game)
+    {
+        var r = new OpResult();
+        var st = LoaderInspector.Inspect(game, _store);
+
+        if (!st.Present)
+            return OpResult.Fail("目录里没有 BepInEx 痕迹，无需清理。");
+
+        if (st.CorePresent)
+            return OpResult.Fail(
+                "loader 核心仍在，不能用残留清理。",
+                "请用「启用 Mod 支持」开关走正常还原流程。");
+
+        if (ProcessGuard.IsGameRunning())
+            return OpResult.Fail("游戏正在运行，请先完全退出游戏。");
+
+        var n = CleanRuntimeTraces(game, r);
+
+        // 剩下的插件不是本工具写的，只报告不动手
+        foreach (var p in st.Plugins)
+            r.Info($"保留（非本工具安装）：BepInEx/plugins/{p.Name}");
+
+        r.Success = true;
+        r.Info(n == 0 ? "没有可清理的残留。" : $"残留清理完成，共处理 {n} 项。");
         return r;
     }
 

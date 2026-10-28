@@ -16,9 +16,16 @@ public static class LoaderInspector
         var doorstopVer = Path.Combine(game.Root, ".doorstop_version");
 
         bool present = Directory.Exists(bepDir) || File.Exists(winhttp) || File.Exists(doorstopIni);
+        bool corePresent = File.Exists(winhttp) || File.Exists(Path.Combine(bepDir, "core", "BepInEx.dll"));
 
         // 部分安装的判定
-        if (present)
+        if (present && !corePresent)
+        {
+            // 核心已经不在了，剩下的只可能是上次卸载留下的缓存与日志，
+            // 既加载不了插件，也谈不上「他人安装」。
+            warnings.Add("loader 核心已不在，剩余的是缓存与日志残留，可一键清理");
+        }
+        else if (present)
         {
             if (!File.Exists(winhttp)) warnings.Add("缺少 winhttp.dll —— loader 不会生效");
             if (!Directory.Exists(Path.Combine(bepDir, "core")))
@@ -53,6 +60,7 @@ public static class LoaderInspector
         return new LoaderStatus
         {
             Present = present,
+            CorePresent = corePresent,
             DoorstopVersion = doorVer,
             BepInExVersion = bepVer,
             ManagedByUs = state != null,

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Core 的离线验证：在临时目录里模拟游戏根目录，
+    覆盖「残留识别」「残留清理」「装完再卸必须回到干净状态」三条路径。
+    不碰真实游戏目录，能放进 CI。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>BD2ModManager.Core.Tests</AssemblyName>
+    <RootNamespace>BD2ModManager.Core.Tests</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/BD2ModManager.Core/BD2ModManager.Core.csproj" />
+  </ItemGroup>
+
+</Project>

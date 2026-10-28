@@ -17,6 +17,16 @@ public sealed record GameInstall(
 public sealed class LoaderStatus
 {
     public required bool Present { get; init; }
+
+    /// <summary>
+    /// loader 核心是否还在（winhttp.dll 或 BepInEx/core/BepInEx.dll）。
+    /// false 表示目录里只剩缓存、日志之类的运行时痕迹，游戏根本不会加载任何插件。
+    /// </summary>
+    public bool CorePresent { get; init; }
+
+    /// <summary>有痕迹但核心已不在：属于本工具卸载后的残留，不该算「他人安装」。</summary>
+    public bool ResidueOnly => Present && !CorePresent;
+
     public string? DoorstopVersion { get; init; }
     public string? BepInExVersion { get; init; }
     /// <summary>是否由本工具安装（存在状态文件）。false 表示他人/手工安装。</summary>

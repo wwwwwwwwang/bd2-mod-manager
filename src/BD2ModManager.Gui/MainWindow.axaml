@@ -74,6 +74,15 @@
                          Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"
                          TextTrimming="CharacterEllipsis" />
             </StackPanel>
+
+            <!-- 只剩残留时露出来：核心已删，缓存日志可以一键清掉 -->
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowCleanResidue}">
+              <Button Classes="ghost" Content="清理残留" Command="{Binding CleanResidueCommand}"
+                      IsEnabled="{Binding CanCleanResidue}" />
+              <TextBlock Text="只删缓存与日志，plugins 里的插件保留"
+                         FontSize="11" Foreground="{StaticResource TextSecondary}"
+                         VerticalAlignment="Center" />
+            </StackPanel>
           </StackPanel>
         </Border>
 
