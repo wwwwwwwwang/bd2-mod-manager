@@ -7,8 +7,12 @@ publish/
 # dist 是发布产物（65 MB 自包含 exe），不进版本库，走 GitHub Release
 dist/
 
-# 构建时嵌进图形界面的 loader 包，由 scripts/package_loader.py 现生成
+# 构建时嵌进图形界面的 loader 包与解锁插件，都由脚本现生成
 src/BD2ModManager.Gui/Assets/bd2-loader.zip
+src/BD2ModManager.Gui/Assets/BD2SkinUnlock.dll
+
+# 插件编译用的引用程序集（从 loader 包里拆，scripts/prepare_refs.py）
+refs/
 
 # ---- .NET / Visual Studio / Rider ----
 .vs/

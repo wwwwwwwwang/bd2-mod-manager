@@ -40,10 +40,26 @@ jobs:
             --out dist/bd2-loader.zip
           ls -lh dist/bd2-loader.zip
 
-      - name: 嵌入 loader 包
+      - name: 准备插件编译所需的引用程序集
+        run: python3 scripts/prepare_refs.py --zip dist/bd2-loader.zip
+
+      - name: 编译解锁插件
+        run: |
+          dotnet build src/BD2ModManager.SkinUnlock/BD2ModManager.SkinUnlock.csproj -c Release
+          test -f src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll \
+            || (echo "::error::未生成解锁插件"; exit 1)
+
+      - name: 插件离线验证
+        run: |
+          dotnet run --project tests/BD2ModManager.SkinUnlock.Tests \
+            -c Release
+
+      - name: 嵌入 loader 包与解锁插件
         run: |
           mkdir -p src/BD2ModManager.Gui/Assets
           cp dist/bd2-loader.zip src/BD2ModManager.Gui/Assets/bd2-loader.zip
+          cp src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll \
+             src/BD2ModManager.Gui/Assets/BD2SkinUnlock.dll
 
       - name: 还原依赖
         run: |
@@ -88,4 +104,5 @@ jobs:
             out/gui/BD2ModManager.exe
             out/cli/bd2mm.exe
             dist/bd2-loader.zip
+            src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll
           retention-days: 7

@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    皮肤解锁插件（BepInEx 5 插件）。
+
+    与主工具解耦：独立版本号、独立产物（BD2SkinUnlock.dll）。
+    构建只需要「引用程序集」，不需要游戏本体 —— 所以 CI 能出包。
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>BD2SkinUnlock</AssemblyName>
+    <RootNamespace>Suiren.BD2.SkinUnlock</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Product>BD2 SkinUnlock</Product>
+
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <DebugType>none</DebugType>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 供离线测试项目访问内部实现（不影响发布产物） -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>BD2ModManager.SkinUnlock.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!--
+      BepInEx / Harmony 的引用必须与运行时完全同版本，所以不取 NuGet，
+      直接从 loader 包里提取（scripts/prepare_refs.py 会做这件事）。
+    -->
+    <BepInExRefDir Condition="'$(BepInExRefDir)' == ''">$(MSBuildThisFileDirectory)../../refs/bepinex</BepInExRefDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExRefDir)/BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExRefDir)/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unity 引用程序集：仅编译期使用，不随产物输出 -->
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!-- 缺引用时给出可执行的提示，而不是一句 CS0006 -->
+  <Target Name="CheckBepInExRefs" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('$(BepInExRefDir)/BepInEx.dll')"
+           Text="缺少 BepInEx 引用程序集：$(BepInExRefDir)/BepInEx.dll。请先运行 python3 scripts/package_loader.py --out dist/bd2-loader.zip，再运行 python3 scripts/prepare_refs.py，或用 -p:BepInExRefDir=&lt;core 目录&gt; 指定。" />
+  </Target>
+
+</Project>

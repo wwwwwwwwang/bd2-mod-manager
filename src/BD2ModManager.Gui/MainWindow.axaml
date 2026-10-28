@@ -117,11 +117,14 @@
         <!-- 第三方组件 -->
         <Border Classes="card">
           <StackPanel Spacing="8">
-            <Grid ColumnDefinitions="*,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
               <TextBlock Classes="label" Text="第三方组件" VerticalAlignment="Center" />
               <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ComponentCountText}"
                          VerticalAlignment="Center" Margin="0,0,8,0" />
-              <Button Grid.Column="2" Classes="ghost" Content="安装组件…"
+              <Button Grid.Column="2" Classes="ghost" Content="安装内置插件"
+                      Command="{Binding InstallBuiltInCommand}" Margin="0,0,6,0"
+                      IsEnabled="{Binding CanManageComponents}" />
+              <Button Grid.Column="3" Classes="ghost" Content="安装组件…"
                       Command="{Binding InstallComponentCommand}"
                       IsEnabled="{Binding CanManageComponents}" />
             </Grid>

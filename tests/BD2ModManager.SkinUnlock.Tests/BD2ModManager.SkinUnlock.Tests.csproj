@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    插件的离线验证：用假游戏结构跑通整条链路。
+    只依赖引用程序集，不需要游戏本体，所以能放进 CI。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>BD2ModManager.SkinUnlock.Tests</AssemblyName>
+    <RootNamespace>Suiren.BD2.SkinUnlock.Tests</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <BepInExRefDir Condition="'$(BepInExRefDir)' == ''">$(MSBuildThisFileDirectory)../../refs/bepinex</BepInExRefDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/BD2ModManager.SkinUnlock/BD2ModManager.SkinUnlock.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Harmony 运行时会去找 MonoMod 那几个依赖，把 core 整个带到输出目录。
+      但 0Harmony 要排除：那是给 Unity Mono 编译的 HarmonyX，在 .NET 8 上
+      初始化 AccessTools 会失败。测试宿主用下面 NuGet 的标准构建，
+      两者 API 完全一致，补丁代码不用改。
+    -->
+    <None Include="$(BepInExRefDir)/*.dll" Exclude="$(BepInExRefDir)/0Harmony.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>%(Filename)%(Extension)</Link>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.3.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- BepInEx 只是程序集级引用，不会被加载 -->
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExRefDir)/BepInEx.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

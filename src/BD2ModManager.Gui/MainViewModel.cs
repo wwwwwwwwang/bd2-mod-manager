@@ -51,6 +51,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         BrowseCommand = new RelayCommand(() => _ = BrowseAsync());
         PickPackageCommand = new RelayCommand(() => _ = PickPackageAsync());
         InstallComponentCommand = new RelayCommand(() => _ = InstallComponentAsync());
+        InstallBuiltInCommand = new RelayCommand(() => _ = InstallBuiltInAsync());
         OpenGameFolderCommand = new RelayCommand(OpenGameFolder);
         ClearLogCommand = new RelayCommand(() => LogText = "");
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
@@ -75,6 +76,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand BrowseCommand { get; }
     public ICommand PickPackageCommand { get; }
     public ICommand InstallComponentCommand { get; }
+
+    /// <summary>把打包时嵌进来的解锁插件装成组件，用户不用另外找文件。</summary>
+    public ICommand InstallBuiltInCommand { get; }
     public ICommand OpenGameFolderCommand { get; }
     public ICommand ClearLogCommand { get; }
     public ICommand ConfirmYesCommand { get; }
@@ -479,6 +483,96 @@ public sealed class MainViewModel : INotifyPropertyChanged
             BusyText = "";
             RefreshStatus();
         }
+    }
+
+    private async Task InstallBuiltInAsync()
+    {
+        if (_game == null) { Log("还没有找到游戏。"); return; }
+        if (ProcessGuard.IsGameRunning())
+        {
+            Log("游戏正在运行，请先完全退出游戏。");
+            GameRunning = true;
+            return;
+        }
+
+        byte[]? payload;
+        try
+        {
+            payload = ReadEmbedded("BD2SkinUnlock.dll");
+        }
+        catch (Exception ex)
+        {
+            Log($"读取内置插件失败：{ex.Message}");
+            return;
+        }
+
+        if (payload == null)
+        {
+            Log("这个构建里没有内置插件。可以从 Release 页面下载 BD2SkinUnlock.dll，" +
+                "再用「安装组件…」选中它所在的文件夹。");
+            return;
+        }
+
+        var staging = Path.Combine(Path.GetTempPath(), "bd2mm-builtin-" + Guid.NewGuid().ToString("N"));
+
+        IsBusy = true;
+        BusyText = "正在安装内置插件…";
+        try
+        {
+            Directory.CreateDirectory(staging);
+            File.WriteAllBytes(Path.Combine(staging, "BD2SkinUnlock.dll"), payload);
+
+            var game = _game;
+            var r = await Task.Run(() => _components.Install(game, staging));
+            WriteResult(r);
+
+            if (r.Success) WarnAboutCompetingPlugins(game);
+        }
+        catch (Exception ex)
+        {
+            Log($"安装内置插件出错：{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+            try { Directory.Delete(staging, true); } catch { }
+            RefreshStatus();
+        }
+    }
+
+    /// <summary>同类插件同时启用会互相覆盖补丁，装完立刻提醒。</summary>
+    private void WarnAboutCompetingPlugins(GameInstall game)
+    {
+        var dir = Path.Combine(game.Root, "BepInEx", "plugins");
+        if (!Directory.Exists(dir)) return;
+
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                var name = Path.GetFileName(file);
+                if (!name.StartsWith("第三方闭源插件", StringComparison.OrdinalIgnoreCase)) continue;
+
+                Log($"注意：还留着同类插件 {file}");
+                Log("      两个插件不能同时启用，请把它移除或关掉，否则其中一个会自动停用。");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"检查同类插件时出错：{ex.Message}");
+        }
+    }
+
+    private static byte[]? ReadEmbedded(string name)
+    {
+        var assembly = typeof(MainViewModel).Assembly;
+        using var stream = assembly.GetManifestResourceStream(name);
+        if (stream == null) return null;
+
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
     }
 
     public async Task SetComponentEnabledAsync(ComponentItem item, bool enabled)

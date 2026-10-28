@@ -37,6 +37,11 @@
     <EmbeddedResource Include="Assets\bd2-loader.zip"
                       LogicalName="bd2-loader.zip"
                       Condition="Exists('Assets\bd2-loader.zip')" />
+
+    <!-- 自研解锁插件：构建时拷进 Assets，随 exe 一起发出去，用户点一下就装 -->
+    <EmbeddedResource Include="Assets\BD2SkinUnlock.dll"
+                      LogicalName="BD2SkinUnlock.dll"
+                      Condition="Exists('Assets\BD2SkinUnlock.dll')" />
   </ItemGroup>
 
 </Project>

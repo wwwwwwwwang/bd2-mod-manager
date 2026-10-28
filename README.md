@@ -14,7 +14,7 @@ Brown Dust 2（棕色尘埃2）的 BepInEx 加载器管理器 —— 傻瓜式�
 | 引擎 | 探测 / 安装 / 卸载 / 插件开关 | ✅ 完成 |
 | GUI | 图形界面（Avalonia，双击即用） | ✅ 完成（0.2.0） |
 | 组件 | 第三方插件的安装 / 开关 / 整包移除 | ✅ 完成（0.3.0） |
-| C2 | 自研 MIT 开源插件 | ⬜ 待定 |
+| C2 | 自研 MIT 解锁插件（`BD2SkinUnlock.dll`） | ✅ 完成（0.4.0） |
 
 ## 实测环境（本机真机）
 
@@ -37,13 +37,15 @@ Brown Dust 2（棕色尘埃2）的 BepInEx 加载器管理器 —— 傻瓜式�
 
 1. 打开后自动扫描游戏安装位置；没找到就点「选择目录」，选到有 `BrownDust II.exe` 的那个文件夹。
 2. 打开「启用 Mod 支持」开关 → 铺开 loader；关掉开关 → 删除自己写入的文件并还原被覆盖的原文件。
-3. 「第三方组件」区点「安装组件…」，选中解压后的插件目录（里面含 `.dll`，也可以直接选 `BepInEx` 的上一层）——
+3. 「第三方组件」区点「安装内置插件」→ 装上自研的 `BD2SkinUnlock.dll`（详见「内置解锁插件」），无需另外找文件。
+4. 也可以点「安装组件…」装你自己准备的插件：选中解压后的插件目录（里面含 `.dll`，也可直接选 `BepInEx` 的上一层），
    工具会把每个插件装成独立子目录、记下每个文件的哈希，之后可整包开关、整包移除。
-4. 散装放进去的 `.dll` 仍会出现在「插件」列表里，可单独开关。
+5. 散装放进去的 `.dll` 仍会出现在「插件」列表里，可单独开关。
 
-loader 包已内嵌在 exe 里，单个文件就能用。命令行版 `bd2mm.exe` 仍然保留，给批处理 / 排查用。
+loader 包与解锁插件都已内嵌在 exe 里，单个文件就能用。命令行版 `bd2mm.exe` 仍然保留，给批处理 / 排查用。
 
-> 工具**不附带**任何第三方解锁类插件（见「合规边界」）。它只负责安装与管理你自己提供的插件包，并且只删自己写过的文件。
+> 工具自带的解锁插件是本仓库自己写的 MIT 实现，不含任何第三方闭源代码。第三方组件区只负责安装与管理你自己提供的包，
+> 并且只删自己写过的文件、改过的一律保留。
 
 ### 命令行
 
@@ -91,12 +93,16 @@ BD2ModManager/
 │   └── 实测记录.md
 ├── scripts/
 │   ├── package_loader.py        # 从官方 release 组装 loader 包
+│   ├── prepare_refs.py          # 从 loader 包拆出编译插件要用的引用程序集
 │   ├── make_icon.py             # 生成 ico / logo（纯标准库，无 Pillow）
 │   └── loader-assets/           # LGPL 全文 + 第三方声明
-└── src/
-    ├── BD2ModManager.Core/     # 跨平台核心逻辑
-    ├── BD2ModManager.Cli/      # 命令行外壳（bd2mm）
-    └── BD2ModManager.Gui/      # 图形界面（Avalonia 11，BD2ModManager.exe）
+├── src/
+│   ├── BD2ModManager.Core/      # 跨平台核心逻辑
+│   ├── BD2ModManager.Cli/       # 命令行外壳（bd2mm）
+│   ├── BD2ModManager.Gui/       # 图形界面（Avalonia 11，BD2ModManager.exe）
+│   └── BD2ModManager.SkinUnlock/# BepInEx 插件本体（BD2SkinUnlock.dll，MIT）
+└── tests/
+    └── BD2ModManager.SkinUnlock.Tests/  # 假游戏结构的离线验证（不需要游戏本体）
 ```
 
 源码是唯一真相。`dist/` 是本地构建产物目录，已被 `.gitignore` 排除——二进制走 **GitHub Release**，不进版本库（自包含单文件 65 MB，提交进 git 会让仓库迅速臃肿且无法增量 diff）。
@@ -121,6 +127,7 @@ git push origin v0.2.0
 | `BD2ModManager-<版本>-win-x64.exe` | **图形界面**，自包含单文件，loader 包已内嵌（约 45 MB） |
 | `bd2mm-<版本>-win-x64.exe` | 命令行版，自包含单文件 |
 | `bd2-loader-<版本>.zip` | 从官方 release 现下现组的 loader 包（可单独取用） |
+| `BD2SkinUnlock.dll` | 自研解锁插件，已内嵌在图形界面里；单文件版给手动安装或旧版工具用 |
 | `SHA256SUMS.txt` | 上述文件的校验和 |
 
 `.github/workflows/ci.yml` 在每次 push / PR 时跑编译与打包校验，`.github/workflows/release.yml` 只在打标签时发布。
@@ -128,11 +135,20 @@ git push origin v0.2.0
 ### 手动
 
 ```bash
-# 组装 loader 分发包（含 SHA256 校验与清单生成）
+# 1. 组装 loader 分发包（含 SHA256 校验与清单生成）
 python3 scripts/package_loader.py --out dist/bd2-loader.zip
 
-# 把包嵌进图形界面，再发布（顺序不能反）
+# 2. 从 loader 包里拆出编译插件要用的 BepInEx / Harmony 引用
+python3 scripts/prepare_refs.py --zip dist/bd2-loader.zip
+
+# 3. 编译解锁插件，并跑一遍离线验证
+dotnet build src/BD2ModManager.SkinUnlock/BD2ModManager.SkinUnlock.csproj -c Release
+dotnet run --project tests/BD2ModManager.SkinUnlock.Tests -c Release
+
+# 4. 把 loader 包与插件嵌进图形界面，再发布（顺序不能反）
 cp dist/bd2-loader.zip src/BD2ModManager.Gui/Assets/bd2-loader.zip
+cp src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll \
+   src/BD2ModManager.Gui/Assets/BD2SkinUnlock.dll
 dotnet publish src/BD2ModManager.Gui/BD2ModManager.Gui.csproj \
   -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true \
   -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o out
@@ -142,6 +158,9 @@ dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
   -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true \
   -p:IncludeNativeLibrariesForSelfExtract=true -o out
 ```
+
+插件只引用「引用程序集」，编译不需要游戏本体；`UnityEngine.Modules 2021.3.33` 从 NuGet 取（`ExcludeAssets="runtime"`，
+只用于编译，不会进产物），BepInEx 与 HarmonyX 则必须与运行时同版本，所以从我们自己组的 loader 包里拆。
 
 无 .NET 时先装：
 
@@ -172,7 +191,61 @@ export PATH="$HOME/.dotnet:$PATH" DOTNET_ROOT="$HOME/.dotnet"
 
 工具本身建议以 **MIT** 开源发布。LGPL 组件必须以独立文件分发，不得静态链接或 ILMerge 进主程序。
 
-**关于解锁类插件**：它既不是国外开源项目的封装，也没有任何许可证——反编译可见作者声明框（`docs/分析存档.md` §2.0）。所以本工具**不预置、不分发**它，只提供「第三方组件」能力：由使用者自己提供插件包，工具负责安装、开关、按清单移除。要真正内置一份，只能等我们自己写出等价的 MIT 实现（C2）。
+**关于解锁类插件**：某平台那份既不是国外开源项目的封装，也没有任何许可证——反编译可见作者声明框（`docs/分析存档.md` §2.0）。
+所以本工具**不分发**它，只用「第三方组件」能力管理使用者自己提供的包。
+
+0.4.0 起这个位置由本仓库自研的 MIT 实现顶上了（`src/BD2ModManager.SkinUnlock/`，见下一节），
+源码、构建日志、哈希都可查，不再依赖任何人的闭源二进制。
+
+## 内置解锁插件
+
+`src/BD2ModManager.SkinUnlock/` 是一份独立的 BepInEx 5 插件（MIT），产物 `BD2SkinUnlock.dll`。
+它只做两件事：
+
+1. **让已拥有的服装能选到它全部皮肤** —— 皮肤清单来自游戏自带的设计表（`PrestigeSkinTable`），不硬编码任何 id；
+2. **点击皮肤时只改本地内存**，不给服务器发切换请求。
+
+**不做什么**：不会凭空造出你没买的服装（那部分数据由服务端下发）；不发任何网络请求；不碰游戏本体文件。
+
+### 和某平台那份的差别
+
+| | 第三方闭源插件 | BD2SkinUnlock |
+|---|---|---|
+| 许可 | 无（作者保留，注明「请勿倒卖」） | MIT |
+| 编译期依赖 | 直接引用游戏程序集 | 全反射，游戏改结构只会让功能失效，不会让程序集加载失败 |
+| 找字典 | 反复遍历所有程序集的所有静态字段 | 解析一次并缓存 |
+| 周期性清理 | 每 3 秒全表扫一遍 | 只校验自己补过的条目，代价 O(补入条数) |
+| 出错处理 | 吞掉异常、跳过原方法 | 交还原方法，游戏照常走 |
+| 退出时 | 不还原 | 移除注入条目 + 撤销补丁 |
+| 同类插件并存 | 两套补丁互相覆盖 | 检测到就自动停用自己并说明 |
+| Harmony 版本 | 绑定编译期那一版 | 反射调用 `Patch`，按运行时实际签名 |
+
+### 配置
+
+`BepInEx/config/com.suiren.bd2.skinunlock.cfg`
+
+| 项 | 默认 | 说明 |
+|---|---|---|
+| `General.Enabled` | true | 总开关，关掉后不介入游戏（需重启生效） |
+| `General.ReapplyIntervalSeconds` | 2 | 把已选皮肤写回服装的间隔。服务器同步会覆盖本地选择，靠这个恢复 |
+| `General.MigrateLegacyConfig` | true | 首次运行导入旧插件 `第三方闭源插件.cfg` 里的选择，导完把原文件改名 |
+| `Diagnostics.Verbose` | false | 排查时打开，输出每轮巡检细节 |
+
+选择记录单独存在 `BepInEx/config/com.suiren.bd2.skinunlock.selection.txt`，`costumeId=designId` 每行一条，
+和旧格式一致，两边可以互导。
+
+### 验证到哪一步
+
+`tests/BD2ModManager.SkinUnlock.Tests` 用一套假游戏结构（`Proto.Net.CostumeDBInfo` / `Proto.Net.PrestigeSkinDBInfo` /
+`Proto.Design.common.PrestigeSkinTable` / `RawDataManager`，字段布局按真实客户端摆）把整条链路跑一遍：
+
+```
+dotnet run --project tests/BD2ModManager.SkinUnlock.Tests -c Release
+```
+
+覆盖反射解析、读设计表、注入条目、补全列表、拦截点击、单一选中、服务器覆盖后回放、取消、回滚、撤销补丁，
+**31 项检查全部通过**，CI 每次都跑。没有覆盖的是真实游戏里的字段名与时机——这一层只能进游戏看日志：
+插件启动时会按步骤把进度写进 `BepInEx\LogOutput.log`，解析不到会说清卡在哪一步（`Step`）和原因（`Problem`）。
 
 ## C1 包含什么
 

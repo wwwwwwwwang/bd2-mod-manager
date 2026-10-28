@@ -67,10 +67,20 @@ jobs:
             --cache-dir .cache/loader \
             --out dist/bd2-loader.zip
 
-      - name: 嵌入 loader 包并还原依赖
+      - name: 准备插件编译所需的引用程序集
+        run: python3 scripts/prepare_refs.py --zip dist/bd2-loader.zip
+
+      - name: 编译解锁插件
+        run: |
+          dotnet build src/BD2ModManager.SkinUnlock/BD2ModManager.SkinUnlock.csproj -c Release
+          ls -l src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/
+
+      - name: 嵌入 loader 包与解锁插件并还原依赖
         run: |
           mkdir -p src/BD2ModManager.Gui/Assets
           cp dist/bd2-loader.zip src/BD2ModManager.Gui/Assets/bd2-loader.zip
+          cp src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll \
+             src/BD2ModManager.Gui/Assets/BD2SkinUnlock.dll
           dotnet restore src/BD2ModManager.Gui/BD2ModManager.Gui.csproj
           dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
 
@@ -104,6 +114,7 @@ jobs:
           mv out/gui/BD2ModManager.exe "dist/BD2ModManager-${VER}-win-x64.exe"
           mv out/cli/bd2mm.exe "dist/bd2mm-${VER}-win-x64.exe"
           mv dist/bd2-loader.zip "dist/bd2-loader-${VER}.zip"
+          cp src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll dist/
           ls -lh dist/
 
       - name: 生成校验和
