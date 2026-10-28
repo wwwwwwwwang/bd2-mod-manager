@@ -108,7 +108,7 @@ internal static class Program
         var zip = packagePath ?? FindPackageZip();
         if (zip == null)
         {
-            Check("找到 loader 包", false, "dist/ 里没有 bd2-loader-*.zip，可用第一个参数指定");
+            Check("找到 loader 包", false, "dist/ 里没有 bd2-loader*.zip，可用第一个参数指定");
             Console.WriteLine();
             return;
         }
@@ -198,7 +198,8 @@ internal static class Program
             var dist = Path.Combine(dir.FullName, "dist");
             if (Directory.Exists(dist))
             {
-                var zip = Directory.EnumerateFiles(dist, "bd2-loader-*.zip")
+                // 本地是 bd2-loader-0.4.1.zip，CI 生成的是 bd2-loader.zip，两种都要认
+                var zip = Directory.EnumerateFiles(dist, "bd2-loader*.zip")
                                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                                    .LastOrDefault();
                 if (zip != null) return zip;

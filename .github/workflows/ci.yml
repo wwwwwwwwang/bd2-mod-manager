@@ -54,6 +54,11 @@ jobs:
           dotnet run --project tests/BD2ModManager.SkinUnlock.Tests \
             -c Release
 
+      - name: Core 离线验证（残留识别 / 清理 / 装完再卸）
+        run: |
+          # 会读 dist/bd2-loader.zip 走一遍完整安装与卸载，所以排在上面那步之后
+          dotnet run --project tests/BD2ModManager.Core.Tests -c Release
+
       - name: 嵌入 loader 包与解锁插件
         run: |
           mkdir -p src/BD2ModManager.Gui/Assets
