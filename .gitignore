@@ -22,6 +22,12 @@ dist/
 *.bak
 ~$*
 
+# ---- 上游发行包缓存（scripts/package_loader.py）----
+.cache/
+
+# ---- IDE / agent 工作区数据（不属于项目源码）----
+.workbuddy/
+
 # ---- 系统 ----
 .DS_Store
 Thumbs.db

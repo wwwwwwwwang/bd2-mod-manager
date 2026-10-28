@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: 编译与打包校验
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: 读取版本号
+        id: ver
+        run: |
+          VER=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' Directory.Build.props | head -1)
+          if [ -z "$VER" ]; then
+            echo "::error::Directory.Build.props 中未找到 <Version>"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "版本号：$VER"
+
+      - name: 还原依赖
+        run: dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
+
+      - name: 编译（Release）
+        run: dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj -c Release --no-restore
+
+      - name: 发布 win-x64 单文件
+        run: |
+          dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
+            -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o out
+
+      - name: 校验产物存在
+        run: |
+          ls -lh out/bd2mm.exe
+          test -f out/bd2mm.exe || (echo "::error::未生成 bd2mm.exe"; exit 1)
+
+      - name: 校验 loader 打包脚本
+        run: |
+          python3 scripts/package_loader.py \
+            --cache-dir .cache/loader \
+            --out "$RUNNER_TEMP/bd2-loader.zip"
+
+      - name: 上传构建产物（仅调试用）
+        uses: actions/upload-artifact@v4
+        with:
+          name: bd2mm-${{ steps.ver.outputs.version }}-win-x64-dev
+          path: out/bd2mm.exe
+          retention-days: 7

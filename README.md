@@ -57,11 +57,18 @@ bd2mm enable|disable <游戏目录> <dll>               # 插件开关
 BD2ModManager/
 ├── README.md
 ├── LICENSE                      # MIT（仅覆盖本仓库自写代码）
-├── .gitignore
+├── Directory.Build.props        # 版本号与署名，src 下项目自动继承
+├── .gitignore / .gitattributes
+├── .github/workflows/
+│   ├── ci.yml                   # push / PR：编译与打包校验
+│   └── release.yml              # 打 v* 标签：构建并发布 Release
 ├── docs/
 │   ├── 开发笔记.md
 │   ├── 分析存档.md
 │   └── 实测记录.md
+├── scripts/
+│   ├── package_loader.py        # 从官方 release 组装 loader 包
+│   └── loader-assets/           # LGPL 全文 + 第三方声明
 └── src/
     ├── BD2ModManager.Core/     # 跨平台核心逻辑
     └── BD2ModManager.Cli/      # 命令行外壳（bd2mm）
@@ -71,19 +78,55 @@ BD2ModManager/
 
 远端构建目录：`ssh.build-host.example:~/build/bd2mm/`（Linux，仅用于编译与逻辑验证；WPF 等 Windows 专属 UI 无法在该环境运行）。
 
-## 构建
+## 构建与发布
 
-服务器（Linux，无 .NET 时先装）：
+### 自动（推荐）
+
+推一个 `v*` 标签即可，GitHub Actions 会完成编译、打包、发布：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+流水线产出三个资产：
+
+| 资产 | 内容 |
+|---|---|
+| `bd2mm-<版本>-win-x64.exe` | 自包含单文件，用户无需安装 .NET |
+| `bd2-loader-<版本>.zip` | 从官方 release 现下现组的 loader 包 |
+| `SHA256SUMS.txt` | 上述文件的校验和 |
+
+`.github/workflows/ci.yml` 在每次 push / PR 时跑编译与打包校验，`.github/workflows/release.yml` 只在打标签时发布。
+
+### 手动
+
+```bash
+# 编译 + 发布 Windows 单文件（Linux 交叉编译亦可，已验证）
+dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
+  -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true \
+  -p:IncludeNativeLibrariesForSelfExtract=true -o out
+
+# 组装 loader 分发包（含 SHA256 校验与清单生成）
+python3 scripts/package_loader.py --out dist/bd2-loader.zip
+```
+
+无 .NET 时先装：
 
 ```bash
 curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir ~/.dotnet
 export PATH="$HOME/.dotnet:$PATH" DOTNET_ROOT="$HOME/.dotnet"
-
-dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj -c Release
-dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj -c Release \
-  -r win-x64 --self-contained true -p:PublishSingleFile=true \
-  -p:IncludeNativeLibrariesForSelfExtract=true -o out
 ```
+
+### loader 包为什么由脚本生成
+
+`scripts/package_loader.py` 不把 BepInEx 二进制存进仓库，而是**每次从官方 release 下载、按固定 SHA256 校验、再组装**。这样做有三个实际好处：
+
+1. **可审计**：上游哈希写死在脚本里，任何篡改都会导致构建失败，而不是悄悄进入发布物。
+2. **仓库干净**：52 个二进制文件不进 git，体积与 diff 噪声都省掉。
+3. **确定性构建**：zip 内时间戳与排序固定，同样的输入必得同样的 SHA256（已实测两次构建完全一致：`789bb33e…`）。
+
+许可证全文与第三方声明存放在 `scripts/loader-assets/`，随包一同分发，满足 LGPL 的附随义务。
 
 ## 合规边界
 

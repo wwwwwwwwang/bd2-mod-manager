@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的标签，例如 v0.1.0（留空时使用当前 ref）"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 构建并发布
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: 解析目标标签
+        id: meta
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ github.ref_name }}"
+          fi
+          if [[ "$TAG" != v* ]]; then
+            echo "::error::标签必须以 v 开头（当前：$TAG）"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "目标标签：$TAG"
+
+      - name: 读取版本号
+        id: ver
+        run: |
+          VER=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' Directory.Build.props | head -1)
+          if [ -z "$VER" ]; then
+            echo "::error::Directory.Build.props 中未找到 <Version>"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+          TAG_VER="${{ steps.meta.outputs.tag }}"
+          TAG_VER="${TAG_VER#v}"
+          if [ "$TAG_VER" != "$VER" ]; then
+            echo "::warning::标签版本（$TAG_VER）与 Directory.Build.props（$VER）不一致"
+          fi
+          echo "源码版本：$VER"
+
+      - name: 还原依赖
+        run: dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
+
+      - name: 编译（Release）
+        run: |
+          dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
+            -c Release --no-restore
+
+      - name: 发布 win-x64 单文件
+        run: |
+          dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
+            -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o out
+
+      - name: 组装 loader 包
+        run: |
+          python3 scripts/package_loader.py \
+            --cache-dir .cache/loader \
+            --out "dist/bd2-loader.zip"
+
+      - name: 整理发布资产
+        run: |
+          VER="${{ steps.ver.outputs.version }}"
+          mkdir -p dist
+          mv out/bd2mm.exe "dist/bd2mm-${VER}-win-x64.exe"
+          mv dist/bd2-loader.zip "dist/bd2-loader-${VER}.zip"
+          ls -lh dist/
+
+      - name: 生成校验和
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: 显示产物元数据
+        run: |
+          echo "=== 产物清单 ==="
+          ls -la dist/
+          echo "=== 从 Directory.Build.props 继承的元数据 ==="
+          grep -E "Version|Authors|Company|Copyright" Directory.Build.props | sed 's/^ *//'
+
+      - name: 发布到 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，覆盖上传资产"
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --title "BD2ModManager $TAG" \
+              --generate-notes
+          fi
+          echo "已发布：${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"
