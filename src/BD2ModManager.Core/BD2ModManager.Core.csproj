@@ -8,6 +8,12 @@
     <RootNamespace>BD2ModManager.Core</RootNamespace>
     <AssemblyName>BD2ModManager.Core</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- 署名：燧人氏，取「带来火种的人」之意 -->
+    <Authors>燧人氏</Authors>
+    <Company>燧人氏</Company>
+    <Product>BD2ModManager</Product>
+    <Copyright>Copyright (c) 2026 燧人氏</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

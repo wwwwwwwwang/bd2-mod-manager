@@ -120,3 +120,11 @@ manifest.json                        54 文件 path+size+sha256
 - **区分两条分发路径**：官网 `BD2StarterSetup.exe` 安装版可支持；Google Play Games 版（`BrownDust2 (GPG)`）结构不同，应识别并拒绝。BD2 **不在 Steam**。
 - **开关两层**：loader 总开关（铺/收文件）+ 单插件开关（`.dll` ↔ `.dll.disabled`）。
 - 无签名 exe 写 DLL 必被杀软误报，只能靠开源/不混淆/不上壳缓解，**不做免杀**。
+
+## 署名
+
+**燧人氏** —— 取「带来火种的人」之意，愿福泽万民。
+
+这个工具不收费、不预置闭源插件、不抹除任何人的署名。它只做一件事：把本该属于公共领域的东西，干净地交回使用者手上。
+
+作者：[`@wwwwwwwwang`](https://github.com/wwwwwwwwang) · 许可：[MIT](LICENSE)
