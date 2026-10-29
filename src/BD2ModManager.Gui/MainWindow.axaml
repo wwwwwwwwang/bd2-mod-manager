@@ -129,9 +129,12 @@
         </StackPanel>
 
         <!-- 底部胶囊 -->
-        <StackPanel Grid.Row="2" Margin="18,0,18,14" Spacing="10">
-          <primitives:UniformGrid Columns="2" Rows="1">
+        <StackPanel Grid.Row="2" Margin="18,0,18,14" Spacing="10"
+                    HorizontalAlignment="Stretch">
+          <primitives:UniformGrid Columns="2" Rows="1"
+                                  HorizontalAlignment="Stretch">
             <Button Classes="pill" Margin="0,0,4,0"
+                    HorizontalAlignment="Stretch"
                     Command="{Binding OpenPathSheetCommand}">
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Path Data="M3 6.5C3 5.7 3.7 5 4.5 5H9L11 7H19.5C20.3 7 21 7.7 21 8.5V18.5C21 19.3 20.3 20 19.5 20H4.5C3.7 20 3 19.3 3 18.5V6.5Z"
@@ -139,7 +142,7 @@
                       StrokeThickness="1.5" StrokeJoin="Round"
                       Width="14" Height="14" Stretch="Uniform"
                       VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="目录与环境" Margin="7,0,0,0"
+                <TextBlock Grid.Column="1" Text="目录" Margin="7,0,0,0"
                            FontSize="11.5" VerticalAlignment="Center"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <Path Grid.Column="2" Data="M9 18L15 12L9 6"
@@ -151,6 +154,7 @@
             </Button>
 
             <Button Classes="pill" Margin="4,0,0,0"
+                    HorizontalAlignment="Stretch"
                     Command="{Binding OpenLogsSheetCommand}">
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Path Data="M4 5H20V19H4V5Z M7 9L10 12L7 15 M12 15H17"
