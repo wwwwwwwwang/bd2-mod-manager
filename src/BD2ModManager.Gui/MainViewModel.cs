@@ -66,7 +66,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CloseSheetCommand = new RelayCommand(CloseSheet);
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
         ConfirmCancelCommand = new RelayCommand(() => _confirm?.TrySetResult(false));
-        MinimizeToTrayHint = "把 .dll 放进 BepInEx\\plugins 目录，重启游戏即可生效。";
 
         StatusBrush = Brush.Parse("#9AA1AA");
         Version = ReadVersion();
@@ -77,7 +76,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string Version { get; }
     public string Title => "BD2ModManager";
     public string Subtitle => "Brown Dust 2 · 一键皮肤解锁";
-    public string MinimizeToTrayHint { get; }
 
     public ObservableCollection<PluginItem> Plugins { get; } = new();
     public ObservableCollection<ComponentItem> Components { get; } = new();

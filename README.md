@@ -22,7 +22,7 @@
 
 1. 前往 [Releases](https://github.com/wwwwwwwwang/bd2-mod-manager/releases/latest) 下载 `BD2ModManager-<版本>-win-x64.exe`。
 2. **完全退出游戏**，双击运行（无需安装）。
-3. 确认游戏目录指向含 `BrownDust II.exe` 的文件夹；没自动找到就点「选择目录」。
+3. 确认游戏目录指向含 `BrownDust II.exe` 的文件夹；首次没找到会自动展开「目录与环境」，也可以点「选择目录」。
 4. 打开「一键启用」，等待状态显示「已启用」后启动游戏。
 
 > **关闭开关**：会移除内置解锁插件和本工具安装的 loader，并清理运行时产物。
