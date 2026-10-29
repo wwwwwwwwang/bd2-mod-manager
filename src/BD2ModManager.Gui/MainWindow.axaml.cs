@@ -27,7 +27,7 @@ public partial class MainWindow : Window
 
     private void TickSpinner()
     {
-        if (LoadingArc.RenderTransform is not RotateTransform rotate) return;
+        if (LoadingRing.RenderTransform is not RotateTransform rotate) return;
 
         if (DataContext is not MainViewModel vm || !vm.IsBusy)
         {

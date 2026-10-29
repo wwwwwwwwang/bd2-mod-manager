@@ -204,10 +204,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string HeroHint => IsBusy
         ? (string.IsNullOrWhiteSpace(BusyText) ? "正在准备…" : BusyText)
         : ToggleOn
-            ? "内置皮肤解锁插件已就绪 · 启动游戏即可生效"
+            ? ""
             : "点击中央开关，一键安装解锁插件与 Loader";
 
+    public bool ShowHeroHint => IsBusy || !ToggleOn;
+
     public string PowerLabel => IsBusy ? "处理中" : ToggleOn ? "已启用" : "启用";
+
+    public IBrush PowerBackground => IsBusy
+        ? Brush.Parse("#60A5FA")
+        : ToggleOn ? Brush.Parse("#2563EB") : Brush.Parse("#E2E8F0");
+
+    public IBrush PowerTextBrush => IsBusy || ToggleOn
+        ? Brushes.White
+        : Brush.Parse("#94A3B8");
 
     public IBrush HeroDotBrush => ToggleOn
         ? Brush.Parse("#2563EB")
@@ -242,7 +252,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(HeroTitle));
         OnPropertyChanged(nameof(HeroHint));
+        OnPropertyChanged(nameof(ShowHeroHint));
         OnPropertyChanged(nameof(PowerLabel));
+        OnPropertyChanged(nameof(PowerBackground));
+        OnPropertyChanged(nameof(PowerTextBrush));
         OnPropertyChanged(nameof(HeroDotBrush));
     }
 

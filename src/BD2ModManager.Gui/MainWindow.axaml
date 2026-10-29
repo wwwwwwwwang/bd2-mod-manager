@@ -80,48 +80,39 @@
         <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
 
           <Grid Width="196" Height="196" HorizontalAlignment="Center">
-            <!-- 柔和外圈 -->
+            <!-- 柔和外圈与静态轨道 -->
             <Ellipse Width="190" Height="190" Fill="#EFF6FF" Opacity="0.8"
                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-            <Ellipse Width="164" Height="164" Stroke="#DBEAFE" StrokeThickness="1"
+            <Ellipse Width="164" Height="164" Stroke="#DBEAFE" StrokeThickness="4"
                      HorizontalAlignment="Center" VerticalAlignment="Center" />
 
-            <!-- 静态轨道 -->
-            <Arc Width="164" Height="164"
-                 StartAngle="-90" SweepAngle="360"
-                 Stroke="#BFDBFE" StrokeThickness="4"
-                 StrokeLineCap="Round"
-                 HorizontalAlignment="Center" VerticalAlignment="Center"
-                 IsVisible="{Binding !IsBusy}" />
-
-            <!-- 加载旋转弧 -->
-            <Arc x:Name="LoadingArc"
-                 Width="164" Height="164"
-                 StartAngle="-90" SweepAngle="80"
-                 Stroke="{StaticResource AccentBrush}" StrokeThickness="4"
-                 StrokeLineCap="Round"
-                 HorizontalAlignment="Center" VerticalAlignment="Center"
-                 IsVisible="{Binding IsBusy}">
-              <Arc.RenderTransform>
+            <!-- 加载旋转虚线环 -->
+            <Ellipse x:Name="LoadingRing"
+                     Width="164" Height="164"
+                     Stroke="{StaticResource AccentBrush}" StrokeThickness="4"
+                     StrokeDashArray="2,8"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     IsVisible="{Binding IsBusy}">
+              <Ellipse.RenderTransform>
                 <RotateTransform CenterX="82" CenterY="82" />
-              </Arc.RenderTransform>
-            </Arc>
+              </Ellipse.RenderTransform>
+            </Ellipse>
 
             <Button Classes="power"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
                     Command="{Binding ToggleCommand}"
                     IsEnabled="{Binding CanToggle}">
               <Border Width="112" Height="112" CornerRadius="56"
-                      Background="{StaticResource PowerGradient}">
+                      Background="{Binding PowerBackground}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
                   <Path Data="M12 2L12 12 M7.05 5.64 A7 7 0 1 0 16.95 5.64"
                         Fill="Transparent"
-                        Stroke="White" StrokeThickness="2.2"
+                        Stroke="{Binding PowerTextBrush}" StrokeThickness="2.2"
                         StrokeLineCap="Round" StrokeJoin="Round"
                         Width="28" Height="28" Stretch="Uniform" />
                   <TextBlock Text="{Binding PowerLabel}"
                              FontSize="11.5" FontWeight="SemiBold"
-                             Foreground="White" HorizontalAlignment="Center" />
+                             Foreground="{Binding PowerTextBrush}" HorizontalAlignment="Center" />
                 </StackPanel>
               </Border>
             </Button>
@@ -134,6 +125,7 @@
                          Foreground="{StaticResource TextPrimary}" />
             </StackPanel>
             <TextBlock Text="{Binding HeroHint}" FontSize="11"
+                       IsVisible="{Binding ShowHeroHint}"
                        Foreground="{StaticResource TextSecondary}"
                        TextAlignment="Center" TextWrapping="Wrap"
                        MaxWidth="270" />
@@ -191,16 +183,6 @@
               </Grid>
             </Button>
           </Grid>
-
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="5">
-            <Path Data="M12 2L20 6V12C20 17 16 20 12 22C8 20 4 17 4 12V6L12 2Z M8 12L11 15L16 9"
-                  Fill="Transparent" Stroke="{StaticResource AccentBrush}"
-                  StrokeThickness="1.3" StrokeLineCap="Round" StrokeJoin="Round"
-                  Width="13" Height="13" Stretch="Uniform" />
-            <TextBlock Text="关闭开关即还原，不修改游戏本体文件"
-                       FontSize="9.5" Foreground="{StaticResource TextMuted}"
-                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-          </StackPanel>
         </StackPanel>
       </Grid>
     </Border>

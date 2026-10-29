@@ -125,7 +125,7 @@
       <Setter Property="Opacity" Value="0.88" />
     </Style>
     <Style Selector="Button.power:disabled">
-      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="Opacity" Value="1" />
     </Style>
 
     <!-- 次要按钮 -->
