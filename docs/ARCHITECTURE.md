@@ -43,7 +43,8 @@ BD2ModManager/
 ├── Directory.Build.props        # 版本号与署名，src 下项目自动继承
 ├── .github/workflows/
 │   ├── ci.yml                   # push / PR：编译与打包校验
-│   └── release.yml              # 打 v* 标签：构建并发布 Release
+│   ├── auto-tag.yml             # CI 通过后自动打 v<版本> 标签并触发发布
+│   └── release.yml              # 打 v* 标签 / 手动触发：构建并发布 Release
 ├── docs/
 │   ├── SECURITY.md
 │   ├── ARCHITECTURE.md

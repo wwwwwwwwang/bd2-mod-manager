@@ -134,13 +134,29 @@ manifest.json                        每个文件 path + size + sha256（当前 
 9. `dotnet publish` 出 GUI 与 CLI 单文件；
 10. 上传 `bd2mm-<版本>-win-x64-dev` 调试产物（保留 7 天）。
 
+### `.github/workflows/auto-tag.yml`
+
+触发：`main` 分支的 CI 成功完成后。
+
+流程：
+
+1. 读取 `Directory.Build.props` 的 `<Version>`；
+2. 如果 `v<Version>` 标签不存在，创建并推送该标签；
+3. 通过 `gh workflow run release.yml --ref <tag> -f tag=<tag>` 显式触发发布。
+
+正常发版只需要改 `<Version>` 并合并到 `main`，CI 通过后自动打标签、触发 Release，不需要手动执行 `git tag`。
+
+> 注意：用 `GITHUB_TOKEN` 推送的标签不会触发 `on: push: tags` 的工作流，所以 auto-tag 必须显式 dispatch `release.yml`。
+
 ### `.github/workflows/release.yml`
 
-触发：推送 `v*` 标签，或手动指定标签。
+触发：推送 `v*` 标签、由 `auto-tag.yml` 触发，或手动指定标签。
+
+手动补发时可以执行：
 
 ```bash
-git tag v0.4.9
-git push origin v0.4.9
+git tag v0.5.0   # 示例：替换为实际版本
+git push origin v0.5.0
 ```
 
 流水线会：

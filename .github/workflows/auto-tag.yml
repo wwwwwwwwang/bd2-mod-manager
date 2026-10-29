@@ -1,0 +1,71 @@
+name: Auto Tag
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: auto-tag-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: 自动打标签并触发发布
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出通过 CI 的提交
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: 读取版本号
+        id: ver
+        run: |
+          VER=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' Directory.Build.props | head -1)
+          if [ -z "$VER" ]; then
+            echo "::error::Directory.Build.props 中未找到 <Version>"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VER" >> "$GITHUB_OUTPUT"
+          echo "版本号：$VER"
+
+      - name: 检查标签是否已存在
+        id: check
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "标签 $TAG 已存在，跳过"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "标签 $TAG 不存在，准备创建"
+          fi
+
+      - name: 创建并推送标签
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: 触发 Release 工作流
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          gh workflow run release.yml --ref "$TAG" -f tag="$TAG"
