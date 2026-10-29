@@ -27,7 +27,6 @@ Brown Dust 2（棕色尘埃2）的 BepInEx 加载器管理器 —— 傻瓜式�
 | 启动器 | `C:\ProgramData\Neowiz\Browndust2Starter\Browndust2Starter.exe` |
 | 写权限 | 目录可写，**不需要管理员权限** |
 | 版本子目录 | `Browndust2_10000001` 会随更新变化，不可硬编码 |
-| 现状 | 2026-10-29 已清理：早期探针（bd2-composer）留下的 BepInEx 5.4.23.5 + Doorstop 4.5.0 + Bd2Probe.dll 全部移除，`bd2mm status` 复核为「目录干净」 |
 
 ## 用法
 
@@ -111,7 +110,7 @@ BD2ModManager/
 
 源码是唯一真相。`dist/` 是本地构建产物目录，已被 `.gitignore` 排除——二进制走 **GitHub Release**，不进版本库（自包含单文件 65 MB，提交进 git 会让仓库迅速臃肿且无法增量 diff）。
 
-远端构建目录：`ssh.build-host.example:~/build/bd2mm/`（Linux，用于编译与逻辑验证；Avalonia 界面可在 Xvfb 里真跑并截图核对，Windows 成品在本机验收）。
+远端构建目录：`远端 Linux 构建机（`ssh <构建机>`, 目录 `~/bd2mm-build`）`（Linux，用于编译与逻辑验证；Avalonia 界面可在 Xvfb 里真跑并截图核对，Windows 成品在本机验收）。
 
 ## 构建与发布
 
@@ -251,17 +250,17 @@ dotnet run --project tests/BD2ModManager.SkinUnlock.Tests -c Release
 ```
 
 覆盖反射解析、读设计表、注入条目、补全列表、拦截点击、单一选中、服务器覆盖后回放、取消、回滚、撤销补丁，
-**32 项检查全部通过**。CI 跑在 GitHub Actions 上（`/tmp` 可执行），两处补丁是**真实挂载**到方法上跑完整条链路的：
+**62 项检查全部通过**。CI 跑在 GitHub Actions 上（`/tmp` 可执行），四个补丁是**真实挂载**到方法上跑完整条链路的：
 
 ```
 log  补丁已挂上：查询服装皮肤 → CostumeDBInfo.GetConnectedPrestigeSkinDBInfos
 log  补丁已挂上：切换皮肤 → Database.SetSkin
-[OK] 两个补丁都挂到了真实方法上
-全部通过：32 项检查。
+[OK] 四个补丁都挂到了真实方法上
+全部通过：62 项检查。
 ```
 
 没有覆盖的是真实游戏里的字段名与时机——这一层只能进游戏看日志：
-插件启动时会按步骤把进度写进 `BepInEx\LogOutput.log`，解析不到会说清卡在哪一步（`Step`）和原因（`Problem`）。
+插件把生命周期、反射进度与补丁挂载数写进 `BepInEx\SkinUnlock.probe.log`，解析不到会说清卡在哪一步（`Step`）和原因（`Problem`）。
 
 ## C1 包含什么
 
@@ -286,6 +285,16 @@ manifest.json                        54 文件 path+size+sha256
 - **区分两条分发路径**：官网 `BD2StarterSetup.exe` 安装版可支持；Google Play Games 版（`BrownDust2 (GPG)`）结构不同，应识别并拒绝。BD2 **不在 Steam**。
 - **开关两层**：loader 总开关（铺/收文件）+ 单插件开关（`.dll` ↔ `.dll.disabled`）。
 - 无签名 exe 写 DLL 必被杀软误报，只能靠开源/不混淆/不上壳缓解，**不做免杀**。
+
+## 许可证
+
+- 本仓库自写代码（Core / CLI / GUI / SkinUnlock 插件 / 打包脚本）：**MIT**，全文见 [LICENSE](LICENSE)。
+- 随 loader 包分发的第三方组件保持其原有许可，本仓库**原样附上**许可文本：
+  - BepInEx 5.4.23.6 —— LGPL-2.1（全文见 `scripts/loader-assets/LICENSE-BepInEx-LGPL-2.1.txt`，随包分发；上游：https://github.com/BepInEx/BepInEx）
+  - BepInEx.ConfigurationManager 19.1 —— LGPL-3.0（许可随其官方包分发；上游：https://github.com/sinai-dev/ConfigurationManager）
+  - HarmonyX / MonoMod / Mono.Cecil —— MIT（官方包内自带）
+- 任何无再分发授权的第三方插件，本仓库不收录、不分发、不打包；「第三方组件」功能只管理使用者自己提供的文件。
+- 免责声明：本工具与 Brown Dust 2 的运营方无关；使用 Mod 相关功能产生的一切后果由使用者自行承担。
 
 ## 署名
 
