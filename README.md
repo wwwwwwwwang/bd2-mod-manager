@@ -77,8 +77,9 @@ bd2mm component-enable|disable <游戏目录> <组件名>            # 整包开
 7. 安装中途异常自动回滚。
 8. **组件同样清单驱动**：每个组件一个子目录，逐文件记哈希；移除时改过的一律保留。loader 自带的插件（如 ConfigurationManager）不归组件管，避免抢走它的文件。关闭「启用 Mod 支持」时先清组件、再删 loader，目录才能真正回到干净状态。
 9. **卸载连运行时产物一起清**：`cache`、`LogOutput.log`、loader 自带的两份 cfg 是 loader 启动时自己生成的，不在安装清单里，卸载要单独处理，否则目录会留个空壳。
-10. **日志框不许改光标**：自动滚底只能用 `ScrollViewer.ScrollToEnd()`。给只读 TextBox 设 `CaretIndex` 会抢焦点，之后窗口里所有开关的点击都会被吞掉（0.2~0.4.1 一直带着这个哑巴 bug）。
+10. **日志区有三条禁忌**：① 不能设 `CaretIndex`——会抢焦点，之后窗口里所有开关的点击都被吞掉（0.2~0.4.1 的哑巴 bug）；② 不能把 TextBlock/TextBox 塞进固定高度容器再指望 `ScrollToEnd`——它们报的内容高度不可靠；③ `ScrollIntoView` 会冒泡，把整页 ScrollViewer 带着滚。现在固定底部 + ListBox + 关虚拟化 + 只滚列表内部。
 11. **残留不等于他人安装**：`winhttp.dll` 与 `BepInEx/core/BepInEx.dll` 都不在时，游戏根本加载不了插件，此时判为「仅剩残留」并允许一键清理；核心仍在就拒绝，必须走正常还原。
+12. **「残留」只算本工具能清的东西**：缓存、日志、loader 自带配置。`plugins` 里的插件是用户的，删不掉也不该删——不能因为它在就把状态卡在「清不掉」。
 
 ## 目录
 

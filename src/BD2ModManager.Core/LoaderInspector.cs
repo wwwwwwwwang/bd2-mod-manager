@@ -18,12 +18,25 @@ public static class LoaderInspector
         bool present = Directory.Exists(bepDir) || File.Exists(winhttp) || File.Exists(doorstopIni);
         bool corePresent = File.Exists(winhttp) || File.Exists(Path.Combine(bepDir, "core", "BepInEx.dll"));
 
+        // 只有「本工具能清的 loader 运行时产物」才算痕迹。
+        // plugins 里放着的插件不算：那是用户的东西，删不掉，也没法让目录消失。
+        bool hasTraces = !corePresent && (
+            File.Exists(winhttp) ||
+            File.Exists(doorstopIni) ||
+            File.Exists(doorstopVer) ||
+            Directory.Exists(Path.Combine(bepDir, "cache")) ||
+            Directory.Exists(Path.Combine(bepDir, "core")) ||
+            File.Exists(Path.Combine(bepDir, "config", "BepInEx.cfg")) ||
+            File.Exists(Path.Combine(bepDir, "config", "com.bepis.bepinex.configurationmanager.cfg")) ||
+            HasLogFiles(bepDir));
+
         // 部分安装的判定
         if (present && !corePresent)
         {
-            // 核心已经不在了，剩下的只可能是上次卸载留下的缓存与日志，
-            // 既加载不了插件，也谈不上「他人安装」。
-            warnings.Add("loader 核心已不在，剩余的是缓存与日志残留，可一键清理");
+            // 核心已经不在了，加载不了任何插件，也谈不上「他人安装」。
+            // 但要区分两类：还有东西可清，还是只剩插件。
+            if (hasTraces)
+                warnings.Add("loader 核心已不在，剩余的是缓存与日志残留，可一键清理");
         }
         else if (present)
         {
@@ -61,6 +74,7 @@ public static class LoaderInspector
         {
             Present = present,
             CorePresent = corePresent,
+            HasTraces = hasTraces,
             DoorstopVersion = doorVer,
             BepInExVersion = bepVer,
             ManagedByUs = state != null,
@@ -68,6 +82,12 @@ public static class LoaderInspector
             Plugins = ListPlugins(bepDir),
             Warnings = warnings
         };
+    }
+
+    private static bool HasLogFiles(string bepDir)
+    {
+        try { return Directory.EnumerateFiles(bepDir, "LogOutput.log*").Any(); }
+        catch { return false; }
     }
 
     /// <summary>去掉 "+hash"、" (build)" 之类的后缀，只留版本号。</summary>

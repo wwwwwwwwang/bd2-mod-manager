@@ -15,10 +15,11 @@ namespace BD2ModManager.Gui;
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly Window _window;
+    private const int MaxLogLines = 500;
+
     private readonly StateStore _store = new();
     private readonly LoaderInstaller _installer;
     private readonly ComponentManager _components;
-    private readonly StringBuilder _log = new();
 
     private GameInstall? _game;
     private PackageHandle? _manualPackage;
@@ -38,7 +39,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _statusText = "尚未检测";
     private string _statusHint = "";
     private string _toggleHint = "";
-    private string _logText = "";
     private string _confirmTitle = "";
     private string _confirmMessage = "";
     private string _lastWarnStamp = "";
@@ -56,7 +56,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InstallBuiltInCommand = new RelayCommand(() => _ = InstallBuiltInAsync());
         OpenGameFolderCommand = new RelayCommand(OpenGameFolder);
         CleanResidueCommand = new RelayCommand(() => _ = CleanResidueAsync());
-        ClearLogCommand = new RelayCommand(() => LogText = "");
+        ClearLogCommand = new RelayCommand(() => LogLines.Clear());
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
         ConfirmCancelCommand = new RelayCommand(() => _confirm?.TrySetResult(false));
         MinimizeToTrayHint = "把 .dll 放进 BepInEx\\plugins 目录，重启游戏即可生效。";
@@ -131,7 +131,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public bool CanCleanResidue => ShowCleanResidue && HasGame && !IsBusy && !GameRunning;
 
-    public string LogText { get => _logText; private set => Set(ref _logText, value); }
+    /// <summary>日志按行存，交给 ListBox 显示——它的滚动最靠谱。</summary>
+    public ObservableCollection<string> LogLines { get; } = new();
 
     public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
 
@@ -269,19 +270,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ToggleOn = st.CorePresent;
         _syncing = false;
 
-        if (!st.Present)
+        if (!st.CorePresent)
         {
-            StatusText = "未启用";
-            StatusHint = "游戏目录干净，可以安全安装";
-            ToggleHint = "打开后游戏将加载 BepInEx 插件；随时可关闭并还原。";
-            StatusBrush = Brush.Parse("#9AA1AA");
-        }
-        else if (st.ResidueOnly)
-        {
-            // 核心已经不在，剩下的只是上次运行留下的缓存和日志。这不算「他人安装」。
-            StatusText = "仅剩残留";
-            StatusHint = "loader 已移除，只剩缓存与日志";
-            ToggleHint = "打开开关会重新装一份完整的 loader；也可以点下面「清理残留」把目录彻底还原。";
+            // 没有 loader 核心，游戏不会加载任何插件。三种情况分开说，免得用户以为没清干净。
+            if (st.ResidueOnly)
+            {
+                StatusText = "仅剩残留";
+                StatusHint = "loader 已移除，只剩缓存与日志";
+                ToggleHint = "打开开关会重新装一份完整的 loader；也可以点下面「清理残留」把目录彻底还原。";
+            }
+            else if (st.Plugins.Count > 0)
+            {
+                // 缓存日志都清完了，plugins 里还有插件——那些不是本工具的产物，删不掉也不该删
+                StatusText = "未启用";
+                // 这里不写数量：组件区与插件区是分开显示的，写总数会和下面的列表对不上
+                StatusHint = "plugins 里还有插件，loader 还没装，游戏不会加载";
+                ToggleHint = "打开后会装一份完整的 loader，plugins 里现有的插件随之生效。";
+            }
+            else
+            {
+                StatusText = "未启用";
+                StatusHint = "游戏目录干净，可以安全安装";
+                ToggleHint = "打开后游戏将加载 BepInEx 插件；随时可关闭并还原。";
+            }
             StatusBrush = Brush.Parse("#9AA1AA");
         }
         else if (st.ManagedByUs)
@@ -362,9 +373,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var st = LoaderInspector.Inspect(game, _store);
         var force = false;
 
-        if (st.ResidueOnly)
+        if (!st.CorePresent)
         {
-            // 只剩自己上次留下的缓存和日志，不弹「他人安装」的警告，直接覆盖装回去
+            // 没有 loader 核心：残留也好、只剩插件也好，都不是一份能用的 BepInEx，
+            // 不该拿「他人安装」去吓用户，直接覆盖装一份完整的
             force = true;
         }
         else if (st.Present && !st.ManagedByUs)
@@ -828,23 +840,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void Log(string line)
     {
-        _log.Append('[').Append(DateTime.Now.ToString("HH:mm:ss")).Append("] ").Append(line).Append('\n');
-        TrimLog();
+        AppendLogLine($"[{DateTime.Now:HH:mm:ss}] {line}");
+    }
+
+    private void AppendLogLine(string line)
+    {
+        LogLines.Add(line);
+        // 只留最近若干行，避免长时间运行后列表无限增长
+        while (LogLines.Count > MaxLogLines) LogLines.RemoveAt(0);
     }
 
     private void WriteResult(OpResult r)
     {
-        foreach (var l in r.Log) _log.Append("  · ").Append(l).Append('\n');
-        foreach (var e in r.Errors) _log.Append("  ✗ ").Append(e).Append('\n');
-        TrimLog();
+        foreach (var l in r.Log) AppendLogLine("  · " + l);
+        foreach (var e in r.Errors) AppendLogLine("  ✗ " + e);
         Log(r.Success ? "完成。" : "失败。");
     }
 
-    private void TrimLog()
-    {
-        if (_log.Length > 20000) _log.Remove(0, _log.Length - 16000);
-        LogText = _log.ToString();
-    }
+
 
     // ------------------------------------------------------------ 基础设施
 

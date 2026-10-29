@@ -24,8 +24,17 @@ public sealed class LoaderStatus
     /// </summary>
     public bool CorePresent { get; init; }
 
-    /// <summary>有痕迹但核心已不在：属于本工具卸载后的残留，不该算「他人安装」。</summary>
-    public bool ResidueOnly => Present && !CorePresent;
+    /// <summary>
+    /// 是否还有本工具能清理的 loader 运行时痕迹（缓存、日志、loader 自带配置等）。
+    /// 只有 plugins 里放着插件不算——那些不是本工具的产物，删不掉也不该删。
+    /// </summary>
+    public bool HasTraces { get; init; }
+
+    /// <summary>
+    /// 只剩本工具能清的痕迹，清完就干净了。
+    /// 注意别用「目录还在」来判断：用户把插件留在 plugins 里时，目录永远在。
+    /// </summary>
+    public bool ResidueOnly => Present && !CorePresent && HasTraces;
 
     public string? DoorstopVersion { get; init; }
     public string? BepInExVersion { get; init; }

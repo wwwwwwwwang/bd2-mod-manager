@@ -87,8 +87,10 @@ internal static class Program
 
         // 插件还在，说明工具不越权删别人的东西
         var after = LoaderInspector.Inspect(game, store);
-        Check("清完仍是残留态（因为插件还在）", after.ResidueOnly);
+        Check("清完不再算「残留」（缓存日志都没了）", !after.ResidueOnly);
+        Check("可清理痕迹归零", !after.HasTraces);
         Check("残留里能列出那个插件", after.Plugins.Any(p => p.Name.StartsWith("vendor")));
+        Check("只剩插件也不算他人安装", !after.ManagedByUs && !after.CorePresent);
 
         // 用户自己把插件删掉之后，再清一次应该连目录一起消失
         File.Delete(vendor);

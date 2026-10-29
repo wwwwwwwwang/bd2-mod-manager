@@ -4,12 +4,12 @@
         x:Class="BD2ModManager.Gui.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="BD2ModManager"
-        Width="680" Height="760"
-        MinWidth="600" MinHeight="640"
+        Width="680" Height="830"
+        MinWidth="600" MinHeight="680"
         Background="{StaticResource WindowBg}"
         WindowStartupLocation="CenterScreen">
 
-  <Grid RowDefinitions="Auto,*,Auto">
+  <Grid RowDefinitions="Auto,*,Auto,Auto">
 
     <!-- ============ 顶栏 ============ -->
     <Border Grid.Row="0" Background="{StaticResource CardBg}"
@@ -194,27 +194,55 @@
           </StackPanel>
         </Border>
 
-        <!-- 日志 -->
-        <Border Classes="card">
-          <StackPanel Spacing="8">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Classes="label" Text="日志" VerticalAlignment="Center" />
-              <Button Grid.Column="1" Classes="link" Content="清空" Command="{Binding ClearLogCommand}" />
-            </Grid>
-            <TextBox x:Name="LogBox" Text="{Binding LogText}" IsReadOnly="True"
-                     AcceptsReturn="True" TextWrapping="Wrap"
-                     Height="132" FontSize="11.5"
-                     FontFamily="Cascadia Mono, Consolas, Noto Sans Mono, monospace"
-                     Background="#FAFBFC" BorderBrush="#E6E8EB" CornerRadius="8"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto" />
-          </StackPanel>
-        </Border>
-
       </StackPanel>
     </ScrollViewer>
 
-    <!-- ============ 底栏 ============ -->
+    <!-- ============ 日志（固定在底部，不跟着内容滚） ============ -->
     <Border Grid.Row="2" Background="{StaticResource CardBg}"
+            BorderBrush="{StaticResource CardBorder}" BorderThickness="0,1,0,0"
+            Padding="18,10">
+      <StackPanel Spacing="6">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Classes="label" Text="日志" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Classes="link" Content="清空" Command="{Binding ClearLogCommand}" />
+        </Grid>
+  <ListBox x:Name="LogList" Height="158" ItemsSource="{Binding LogLines}"
+                     Background="#FAFBFC" BorderBrush="#E6E8EB" BorderThickness="1"
+                     CornerRadius="8" Padding="8,6" Focusable="False"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     FontFamily="Cascadia Mono, Consolas, Noto Sans Mono, monospace"
+                     FontSize="11.5">
+              <ListBox.Styles>
+                <Style Selector="ListBoxItem">
+                  <Setter Property="Padding" Value="2,1" />
+                  <Setter Property="MinHeight" Value="0" />
+                  <Setter Property="Background" Value="Transparent" />
+                  <Setter Property="Focusable" Value="False" />
+                </Style>
+                <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                  <Setter Property="Background" Value="Transparent" />
+                </Style>
+                <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                  <Setter Property="Background" Value="#EEF1F5" />
+                </Style>
+              </ListBox.Styles>
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <!-- 不做虚拟化：虚拟化下内容高度是估算的，ScrollToEnd 滚不到真正底部 -->
+                  <StackPanel />
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+      </StackPanel>
+    </Border>
+
+    <!-- ============ 底栏 ============ -->
+    <Border Grid.Row="3" Background="{StaticResource CardBg}"
             BorderBrush="{StaticResource CardBorder}" BorderThickness="0,1,0,0"
             Padding="20,9">
       <Grid ColumnDefinitions="Auto,*,Auto">
@@ -229,7 +257,7 @@
     </Border>
 
     <!-- ============ 确认浮层 ============ -->
-    <Border Grid.Row="0" Grid.RowSpan="3" ZIndex="100"
+    <Border Grid.Row="0" Grid.RowSpan="4" ZIndex="100"
             IsVisible="{Binding ConfirmVisible}" Background="#66000000">
       <Border Background="White" CornerRadius="14" Padding="20" MaxWidth="440"
               HorizontalAlignment="Center" VerticalAlignment="Center">

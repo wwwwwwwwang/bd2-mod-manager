@@ -388,7 +388,13 @@ public sealed class LoaderInstaller
             r.Info($"保留（非本工具安装）：BepInEx/plugins/{p.Name}");
 
         r.Success = true;
-        r.Info(n == 0 ? "没有可清理的残留。" : $"残留清理完成，共处理 {n} 项。");
+        if (n > 0)
+            r.Info($"残留清理完成，共处理 {n} 项。");
+        else if (st.Plugins.Count > 0)
+            r.Info($"loader 的缓存与日志早就没了，没什么要清理的；plugins 里的 {st.Plugins.Count} 个插件不是本工具装的，保留原样。");
+        else
+            r.Info("没有可清理的残留。");
+
         return r;
     }
 

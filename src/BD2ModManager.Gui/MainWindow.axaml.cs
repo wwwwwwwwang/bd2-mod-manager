@@ -1,6 +1,5 @@
-using System.ComponentModel;
+using System.Collections.Specialized;
 using Avalonia.Controls;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace BD2ModManager.Gui;
@@ -17,28 +16,24 @@ public partial class MainWindow : Window
 
     private void Hook()
     {
-        if (_vm != null) _vm.PropertyChanged -= OnVmPropertyChanged;
+        if (_vm != null) _vm.LogLines.CollectionChanged -= OnLogLinesChanged;
+
         _vm = DataContext as MainViewModel;
-        if (_vm != null) _vm.PropertyChanged += OnVmPropertyChanged;
+
+        if (_vm != null) _vm.LogLines.CollectionChanged += OnLogLinesChanged;
     }
 
     /// <summary>
-    /// 日志更新后滚到底部。
-    /// 注意：不能靠设 CaretIndex 来实现——那会让日志框抢走焦点，
-    /// 之后所有开关的点击都会被吞掉（0.2 起就有的老问题，0.4.2 才查出来）。
-    /// 这里只动滚动条，不碰光标与选区。
+    /// 新日志进来就把列表滚到底。
+    /// 不用 ScrollIntoView：它会一路冒泡，把外面那层整页 ScrollViewer 也带着滚，
+    /// 结果整页往上跳、卡片标题被切掉。这里只动日志列表自己的滚动条。
     /// </summary>
-    private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnLogLinesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MainViewModel.LogText)) return;
+        if (e.Action != NotifyCollectionChangedAction.Add) return;
 
-        // 等这一轮绑定更新完再滚，否则拿到的是旧内容高度
-        Dispatcher.UIThread.Post(() =>
-        {
-            LogBox.GetVisualDescendants()
-                  .OfType<ScrollViewer>()
-                  .FirstOrDefault()?
-                  .ScrollToEnd();
-        }, DispatcherPriority.Background);
+        var sv = LogList.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        sv?.ScrollToEnd();
     }
+
 }

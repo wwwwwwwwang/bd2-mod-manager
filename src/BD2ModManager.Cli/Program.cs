@@ -71,16 +71,24 @@ int CmdStatus(string[] a)
     Console.WriteLine($"Unity     {game.UnityVersion ?? "(未识别)"}");
     Console.WriteLine();
 
-    if (!st.Present)
+    if (!st.CorePresent)
     {
-        Console.WriteLine("Loader    未安装");
-        Console.WriteLine("          游戏目录干净，可以安全安装。");
-    }
-    else if (st.ResidueOnly)
-    {
-        Console.WriteLine("Loader    仅剩残留");
-        Console.WriteLine("          loader 核心已不在（缺 winhttp.dll 与 BepInEx/core），游戏不会加载任何插件。");
-        Console.WriteLine("          缓存与日志可用 GUI 的「清理残留」一键清掉。");
+        if (st.ResidueOnly)
+        {
+            Console.WriteLine("Loader    仅剩残留");
+            Console.WriteLine("          loader 核心已不在（缺 winhttp.dll 与 BepInEx/core），游戏不会加载任何插件。");
+            Console.WriteLine("          缓存与日志可用 GUI 的「清理残留」一键清掉。");
+        }
+        else if (st.Plugins.Count > 0)
+        {
+            Console.WriteLine("Loader    未安装");
+            Console.WriteLine($"          plugins 里有 {st.Plugins.Count} 个插件，但没装 loader，游戏不会加载。");
+        }
+        else
+        {
+            Console.WriteLine("Loader    未安装");
+            Console.WriteLine("          游戏目录干净，可以安全安装。");
+        }
     }
     else
     {
