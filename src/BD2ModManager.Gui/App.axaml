@@ -204,9 +204,6 @@
             <Border Name="Track" CornerRadius="15" Background="{StaticResource TrackOff}" />
             <Border Name="Knob" Width="22" Height="22" CornerRadius="11" Background="White"
                     HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0">
-              <Border.BoxShadow>
-                <BoxShadows>0 1 2 0 #33000000</BoxShadows>
-              </Border.BoxShadow>
             </Border>
           </Grid>
         </ControlTemplate>

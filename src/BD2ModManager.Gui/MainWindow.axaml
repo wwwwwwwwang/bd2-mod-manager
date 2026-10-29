@@ -19,9 +19,6 @@
             Background="{StaticResource ShellGradient}"
             BorderBrush="#D9E8FB"
             BorderThickness="1">
-      <Border.BoxShadow>
-        <BoxShadows>0 24 60 0 #222563EB, 0 8 24 0 #120F172A</BoxShadows>
-      </Border.BoxShadow>
 
       <Grid RowDefinitions="Auto,*,Auto">
 
@@ -36,16 +33,9 @@
           </Grid.ColumnDefinitions>
 
           <Border Grid.Column="0" Width="34" Height="34" CornerRadius="11"
-                  Background="{StaticResource PowerGradient}"
+                  Background="Transparent" ClipToBounds="True"
                   VerticalAlignment="Center">
-            <Border.BoxShadow>
-              <BoxShadows>0 5 14 0 #552563EB</BoxShadows>
-            </Border.BoxShadow>
-            <Path Data="M16 4C16 4 23 10.5 23 18C23 22.4 19.9 26 16 26C12.1 26 9 22.4 9 18C9 10.5 16 4 16 4Z M16 11C16 11 19.5 14.8 19.5 19C19.5 21.5 17.9 23.5 16 23.5C14.1 23.5 12.5 21.5 12.5 19C12.5 14.8 16 11 16 11Z"
-                  Fill="White"
-                  Stretch="Uniform"
-                  Width="18" Height="18"
-                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Image Source="/Assets/logo.png" Stretch="UniformToFill" />
           </Border>
 
           <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" Spacing="1">
@@ -117,9 +107,6 @@
                     IsEnabled="{Binding CanToggle}">
               <Border Width="112" Height="112" CornerRadius="56"
                       Background="{StaticResource PowerGradient}">
-                <Border.BoxShadow>
-                  <BoxShadows>0 12 28 0 #662563EB, 0 4 10 0 #332563EB</BoxShadows>
-                </Border.BoxShadow>
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
                   <Path Data="M12 2L12 12 M7.05 5.64 A7 7 0 1 0 16.95 5.64"
                         Fill="Transparent"
@@ -220,9 +207,6 @@
               BorderBrush="#DBEAFE" BorderThickness="1,0,1,0"
               CornerRadius="26,26,0,0"
               Padding="18,12,18,18">
-        <Border.BoxShadow>
-          <BoxShadows>0 -16 40 0 #332563EB</BoxShadows>
-        </Border.BoxShadow>
         <StackPanel Spacing="11">
           <Border Width="36" Height="4" CornerRadius="2" Background="#E2E8F0"
                   HorizontalAlignment="Center" />
@@ -297,9 +281,6 @@
               BorderBrush="#DBEAFE" BorderThickness="1,0,1,0"
               CornerRadius="26,26,0,0"
               Padding="18,12,18,16">
-        <Border.BoxShadow>
-          <BoxShadows>0 -16 40 0 #332563EB</BoxShadows>
-        </Border.BoxShadow>
         <StackPanel Spacing="9">
           <Border Width="36" Height="4" CornerRadius="2" Background="#E2E8F0"
                   HorizontalAlignment="Center" />
@@ -342,9 +323,6 @@
             IsVisible="{Binding ConfirmVisible}" Background="#660F172A">
       <Border Background="White" CornerRadius="16" Padding="20" MaxWidth="300"
               HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Border.BoxShadow>
-          <BoxShadows>0 10 32 0 #550F172A</BoxShadows>
-        </Border.BoxShadow>
         <StackPanel Spacing="10">
           <TextBlock Text="{Binding ConfirmTitle}" FontSize="14" FontWeight="SemiBold"
                      TextWrapping="Wrap" />
