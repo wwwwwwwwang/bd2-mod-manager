@@ -104,7 +104,7 @@
                  StrokeLineCap="Round"
                  IsVisible="{Binding IsBusy}">
               <Arc.RenderTransform>
-                <RotateTransform x:Name="LoadingArcRotation" CenterX="82" CenterY="82" />
+                <RotateTransform CenterX="82" CenterY="82" />
               </Arc.RenderTransform>
             </Arc>
 
