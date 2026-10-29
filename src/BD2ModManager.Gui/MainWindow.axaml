@@ -136,57 +136,65 @@
             <Button Classes="pill" Margin="0,0,4,0"
                     HorizontalAlignment="Stretch"
                     Command="{Binding OpenPathSheetCommand}">
-              <Grid ColumnDefinitions="Auto,*,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="7"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Path Data="M3 6.5C3 5.7 3.7 5 4.5 5H9L11 7H19.5C20.3 7 21 7.7 21 8.5V18.5C21 19.3 20.3 20 19.5 20H4.5C3.7 20 3 19.3 3 18.5V6.5Z"
                       Fill="Transparent" Stroke="{StaticResource AccentBrush}"
                       StrokeThickness="1.5" StrokeJoin="Round"
                       Width="14" Height="14" Stretch="Uniform"
                       VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="目录"
+                <TextBlock Text="目录"
                            FontSize="11.5" VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                <Path Grid.Column="2" Data="M9 18L15 12L9 6"
+                           TextWrapping="NoWrap" />
+                <Path Data="M9 18L15 12L9 6"
                       Fill="Transparent" Stroke="{StaticResource TextMuted}"
                       StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round"
                       Width="12" Height="12" Stretch="Uniform"
-                      Margin="6,0,0,0" VerticalAlignment="Center" />
-              </Grid>
+                      VerticalAlignment="Center" />
+              </StackPanel>
             </Button>
 
             <Button Classes="pill" Margin="4,0,0,0"
                     HorizontalAlignment="Stretch"
                     Command="{Binding OpenLogsSheetCommand}">
-              <Grid ColumnDefinitions="Auto,*,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="6"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Path Data="M4 5H20V19H4V5Z M7 9L10 12L7 15 M12 15H17"
                       Fill="Transparent" Stroke="{StaticResource AccentBrush}"
                       StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round"
                       Width="14" Height="14" Stretch="Uniform"
                       VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Center">
-                  <TextBlock Text="日志" FontSize="11.5" VerticalAlignment="Center"
-                             TextWrapping="NoWrap" />
-                  <Border MinWidth="16" Height="16" CornerRadius="8"
-                          Background="#EFF6FF" BorderBrush="#DBEAFE" BorderThickness="1"
-                          Padding="4,0" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding LogCountText}" FontSize="9"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               FontFamily="Cascadia Mono, Consolas, monospace"
-                               Foreground="{StaticResource AccentBrush}" />
-                  </Border>
-                </StackPanel>
-                <Path Grid.Column="2" Data="M9 18L15 12L9 6"
+                <TextBlock Text="日志" FontSize="11.5" VerticalAlignment="Center"
+                           TextWrapping="NoWrap" />
+                <Border MinWidth="16" Height="16" CornerRadius="8"
+                        Background="#EFF6FF" BorderBrush="#DBEAFE" BorderThickness="1"
+                        Padding="4,0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding LogCountText}" FontSize="9"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                             FontFamily="Cascadia Mono, Consolas, monospace"
+                             Foreground="{StaticResource AccentBrush}" />
+                </Border>
+                <Path Data="M9 18L15 12L9 6"
                       Fill="Transparent" Stroke="{StaticResource TextMuted}"
                       StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round"
                       Width="12" Height="12" Stretch="Uniform"
-                      Margin="6,0,0,0" VerticalAlignment="Center" />
-              </Grid>
+                      VerticalAlignment="Center" />
+              </StackPanel>
             </Button>
           </primitives:UniformGrid>
         </StackPanel>
       </Grid>
+    </Border>
+
+    <!-- 轻量操作反馈 -->
+    <Border ZIndex="150" IsVisible="{Binding ToastVisible}"
+            HorizontalAlignment="Center" VerticalAlignment="Top"
+            Margin="0,68,0,0"
+            Background="#F8FBFF" BorderBrush="#BFDBFE" BorderThickness="1"
+            CornerRadius="12" Padding="11,6"
+            IsHitTestVisible="False">
+      <TextBlock Text="{Binding ToastText}" FontSize="10.5"
+                 Foreground="{StaticResource AccentBrush}" />
     </Border>
 
     <!-- ============ 抽屉遮罩与面板 ============ -->

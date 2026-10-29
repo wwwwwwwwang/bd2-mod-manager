@@ -40,8 +40,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _unreadLogs;
     private bool _updateAvailable;
     private bool _checkingUpdate;
+    private bool _toastVisible;
     private string _updateStatus = "尚未检查更新";
+    private string _toastText = "";
     private string _releaseUrl = "";
+    private DispatcherTimer? _toastTimer;
 
     private string _busyText = "";
     private string _statusText = "尚未检测";
@@ -195,6 +198,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set => Set(ref _updateStatus, value);
     }
 
+    public bool ToastVisible
+    {
+        get => _toastVisible;
+        private set => Set(ref _toastVisible, value);
+    }
+
+    public string ToastText
+    {
+        get => _toastText;
+        private set => Set(ref _toastText, value);
+    }
+
     public string LogCountText => LogLines.Count.ToString();
 
     public string HeroTitle => IsBusy
@@ -289,7 +304,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (IsCheckingUpdate) return;
 
         IsCheckingUpdate = true;
-        if (manual) UpdateStatus = "正在检查更新…";
+        if (manual)
+        {
+            UpdateStatus = "正在检查更新…";
+            ShowToast("正在检查更新…");
+        }
 
         try
         {
@@ -299,6 +318,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 if (manual)
                 {
                     UpdateStatus = "检查失败，请稍后重试";
+                    ShowToast("检查更新失败");
                     Log($"检查更新失败：{result.Error}");
                 }
                 return;
@@ -308,18 +328,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _releaseUrl = result.ReleaseUrl;
             UpdateStatus = result.Available
                 ? $"发现新版本 {result.LatestVersion}"
-                : "已是最新版本";
+                : $"已是最新版本 · {Version}";
 
             if (result.Available)
+            {
+                ShowToast($"发现新版本 {result.LatestVersion}");
                 Log($"发现新版本 {result.LatestVersion}：{result.ReleaseUrl}");
+            }
             else if (manual)
+            {
+                ShowToast("已是最新版本");
                 Log("当前已是最新版本。");
+            }
         }
         catch (Exception ex)
         {
             if (manual)
             {
                 UpdateStatus = "检查失败，请稍后重试";
+                ShowToast("检查更新失败");
                 Log($"检查更新失败：{ex.Message}");
             }
         }
@@ -327,6 +354,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             IsCheckingUpdate = false;
         }
+    }
+
+    private void ShowToast(string text)
+    {
+        ToastText = text;
+        ToastVisible = true;
+
+        _toastTimer?.Stop();
+        _toastTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(2.2)
+        };
+        _toastTimer.Tick += (_, _) =>
+        {
+            _toastTimer?.Stop();
+            ToastVisible = false;
+        };
+        _toastTimer.Start();
     }
 
     private void OpenReleasePage()
