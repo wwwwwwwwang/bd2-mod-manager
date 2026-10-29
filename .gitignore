@@ -36,6 +36,9 @@ refs/
 # ---- IDE / agent 工作区数据（不属于项目源码）----
 .workbuddy/
 
+# ---- 本地开发笔记（实测记录、阶段规划等，不提交） ----
+dev-notes/
+
 # ---- 系统 ----
 .DS_Store
 Thumbs.db
