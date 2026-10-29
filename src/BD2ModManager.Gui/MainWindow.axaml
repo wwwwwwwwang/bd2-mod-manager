@@ -4,7 +4,7 @@
         x:Class="BD2ModManager.Gui.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="BD2ModManager"
-        Width="380" Height="500"
+        Width="380" Height="460"
         CanResize="False"
         SystemDecorations="None"
         Background="Transparent"
@@ -85,14 +85,17 @@
 
           <Grid Width="196" Height="196" HorizontalAlignment="Center">
             <!-- 柔和外圈 -->
-            <Ellipse Width="190" Height="190" Fill="#EFF6FF" Opacity="0.8" />
-            <Ellipse Width="164" Height="164" Stroke="#DBEAFE" StrokeThickness="1" />
+            <Ellipse Width="190" Height="190" Fill="#EFF6FF" Opacity="0.8"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Ellipse Width="164" Height="164" Stroke="#DBEAFE" StrokeThickness="1"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
 
             <!-- 静态轨道 -->
             <Arc Width="164" Height="164"
                  StartAngle="-90" SweepAngle="360"
                  Stroke="#BFDBFE" StrokeThickness="4"
                  StrokeLineCap="Round"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"
                  IsVisible="{Binding !IsBusy}" />
 
             <!-- 加载旋转弧 -->
@@ -101,6 +104,7 @@
                  StartAngle="-90" SweepAngle="80"
                  Stroke="{StaticResource AccentBrush}" StrokeThickness="4"
                  StrokeLineCap="Round"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"
                  IsVisible="{Binding IsBusy}">
               <Arc.RenderTransform>
                 <RotateTransform CenterX="82" CenterY="82" />
@@ -108,6 +112,7 @@
             </Arc>
 
             <Button Classes="power"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
                     Command="{Binding ToggleCommand}"
                     IsEnabled="{Binding CanToggle}">
               <Border Width="112" Height="112" CornerRadius="56"
@@ -154,7 +159,8 @@
                       Width="14" Height="14" Stretch="Uniform"
                       VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="目录与环境" Margin="7,0,0,0"
-                           VerticalAlignment="Center" />
+                           FontSize="11.5" VerticalAlignment="Center"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <Path Grid.Column="2" Data="M9 18L15 12L9 6"
                       Fill="Transparent" Stroke="{StaticResource TextMuted}"
                       StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round"
@@ -172,7 +178,8 @@
                       Width="14" Height="14" Stretch="Uniform"
                       VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="日志" Margin="7,0,0,0"
-                           VerticalAlignment="Center" />
+                           FontSize="11.5" VerticalAlignment="Center"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <Border Grid.Column="2" Background="White" BorderBrush="#DBEAFE"
                         BorderThickness="1" CornerRadius="8" Padding="5,1"
                         VerticalAlignment="Center">
@@ -191,7 +198,7 @@
                   Width="13" Height="13" Stretch="Uniform" />
             <TextBlock Text="关闭开关即还原，不修改游戏本体文件"
                        FontSize="9.5" Foreground="{StaticResource TextMuted}"
-                       VerticalAlignment="Center" />
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
           </StackPanel>
         </StackPanel>
       </Grid>
