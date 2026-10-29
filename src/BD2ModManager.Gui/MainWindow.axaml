@@ -142,8 +142,9 @@
                       StrokeThickness="1.5" StrokeJoin="Round"
                       Width="14" Height="14" Stretch="Uniform"
                       VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="目录" Margin="7,0,0,0"
+                <TextBlock Grid.Column="1" Text="目录"
                            FontSize="11.5" VerticalAlignment="Center"
+                           HorizontalAlignment="Center"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <Path Grid.Column="2" Data="M9 18L15 12L9 6"
                       Fill="Transparent" Stroke="{StaticResource TextMuted}"
@@ -163,7 +164,8 @@
                       Width="14" Height="14" Stretch="Uniform"
                       VerticalAlignment="Center" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5"
-                            Margin="7,0,0,0" VerticalAlignment="Center">
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Center">
                   <TextBlock Text="日志" FontSize="11.5" VerticalAlignment="Center"
                              TextWrapping="NoWrap" />
                   <Border MinWidth="16" Height="16" CornerRadius="8"
