@@ -78,7 +78,7 @@ bd2mm component-enable|disable <游戏目录> <组件名>            # 整包开
 8. **组件同样清单驱动**：每个组件一个子目录，逐文件记哈希；移除时改过的一律保留。loader 自带的插件（如 ConfigurationManager）不归组件管，避免抢走它的文件。关闭「启用 Mod 支持」时先清组件、再删 loader，目录才能真正回到干净状态。
 9. **卸载连运行时产物一起清**：`cache`、`LogOutput.log`、loader 自带的两份 cfg 是 loader 启动时自己生成的，不在安装清单里，卸载要单独处理，否则目录会留个空壳。
 10. **内容区两层都要管住**：① 横向滚动必须关掉——留 `HorizontalScrollBarVisibility="Auto"` 时会用无限宽测量内容，卡片里的 `TextWrapping` 全部失效、长句子把卡片撑破；② 外面必须套一层 `ClipToBounds="True"`——滚动容器不保证挡住溢出内容，滚不下的卡片会直接画到下面固定住的日志卡片上。
-11. **日志区有三条禁忌**：① 不能设 `CaretIndex`——会抢焦点，之后窗口里所有开关的点击都被吞掉（0.2~0.4.1 的哑巴 bug）；② 不能把 TextBlock/TextBox 塞进固定高度容器再指望 `ScrollToEnd`——它们报的内容高度不可靠；③ `ScrollIntoView` 会冒泡，把整页 ScrollViewer 带着滚。现在固定底部 + ListBox + 关虚拟化 + 只滚列表内部。
+11. **日志区有三条禁忌**：① 不能设 `CaretIndex`——会抢焦点，之后窗口里所有开关的点击都被吞掉（0.2~0.4.1 的哑巴 bug）；② 不能把 TextBlock/TextBox 塞进固定高度容器再指望 `ScrollToEnd`——它们报的内容高度不可靠；③ `ScrollIntoView` 会冒泡，把整页 ScrollViewer 带着滚；④ 高度必须是行高的整数倍，而且边框与内边距不能留在 ListBox 上——它们会算进滚动内容，让视口变成 101.33 这类非整数倍，滚到底时上下各露半行。现在固定底部 + ListBox + 关虚拟化 + 只滚列表内部 + 内边距外移 + 高度 5×18。
 12. **残留不等于他人安装**：`winhttp.dll` 与 `BepInEx/core/BepInEx.dll` 都不在时，游戏根本加载不了插件，此时判为「仅剩残留」并允许一键清理；核心仍在就拒绝，必须走正常还原。
 13. **「残留」只算本工具能清的东西**：缓存、日志、loader 自带配置。`plugins` 里的插件是用户的，删不掉也不该删——不能因为它在就把状态卡在「清不掉」。
 

@@ -245,15 +245,22 @@
                   Command="{Binding ClearLogCommand}" VerticalAlignment="Center" />
         </Grid>
 
-        <ListBox x:Name="LogList" Height="96" ItemsSource="{Binding LogLines}"
-                 Background="#FAFBFC" BorderBrush="#E6E8EB" BorderThickness="1"
-                 CornerRadius="8" Padding="8,6" Focusable="False"
+        <!--
+          边框与内边距放在外层 Border 上，日志列表自己不设内边距：
+          列表的内边距会算进滚动内容里，让偏移量对不齐行高，滚到底时上下各露半行。
+          列表高度 = 5 行 × 18 行高 = 90，正好是行高的整数倍。
+        -->
+        <Border Background="#FAFBFC" BorderBrush="#E6E8EB" BorderThickness="1"
+                CornerRadius="8" Padding="8,6">
+        <ListBox x:Name="LogList" Height="90" ItemsSource="{Binding LogLines}"
+                 Background="Transparent" BorderThickness="0"
+                 Padding="0" Focusable="False"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  FontFamily="Cascadia Mono, Consolas, Noto Sans Mono, monospace"
                  FontSize="11.5">
           <ListBox.Styles>
             <Style Selector="ListBoxItem">
-              <Setter Property="Padding" Value="2,1" />
+              <Setter Property="Padding" Value="2,0" />
               <Setter Property="MinHeight" Value="0" />
               <Setter Property="Background" Value="Transparent" />
               <Setter Property="Focusable" Value="False" />
@@ -273,10 +280,11 @@
           </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
             <DataTemplate>
-              <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding}" TextWrapping="Wrap" LineHeight="18" />
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
+        </Border>
       </StackPanel>
     </Border>
 
