@@ -164,7 +164,9 @@ internal static class Program
         var game = Game(root);
         var comp = new ComponentManager(store);
 
-        Directory.CreateDirectory(Path.Combine(root, "BepInEx", "plugins"));
+        // 模拟精简版 loader：有核心，但没有预置 plugins 目录
+        Directory.CreateDirectory(Path.Combine(root, "BepInEx", "core"));
+        File.WriteAllText(Path.Combine(root, "BepInEx", "core", "BepInEx.dll"), "dummy");
 
         var src = NewDir("CompDemo");
         Directory.CreateDirectory(src);
@@ -172,6 +174,8 @@ internal static class Program
 
         var inst = comp.Install(game, src);
         Check("组件安装成功", inst.Success, string.Join(" | ", inst.Errors));
+        Check("空 plugins 目录由组件安装自动创建",
+            Directory.Exists(Path.Combine(root, "BepInEx", "plugins")));
 
         var first = comp.List(game);
         Check("读到 1 个组件", first.Count == 1, $"count={first.Count}");

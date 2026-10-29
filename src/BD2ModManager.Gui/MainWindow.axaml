@@ -188,7 +188,7 @@
                 <TextBlock Text="还没有第三方组件" FontSize="12.5"
                            Foreground="{StaticResource TextSecondary}" />
                 <TextBlock Classes="muted" TextWrapping="Wrap"
-                           Text="点「安装内置插件」装上皮肤解锁，或选中解压后的插件目录整包装卸。" />
+                           Text="先打开上方「启用 Mod 支持」，再点「安装内置插件」或选择解压后的插件目录。" />
                 <TextBlock Classes="muted" TextWrapping="Wrap"
                            Text="工具只删自己写过的文件，改过的一律保留。" />
               </StackPanel>

@@ -96,11 +96,15 @@ public sealed class ComponentManager
     public OpResult Install(GameInstall game, string sourcePath)
     {
         var pluginsAbs = Path.Combine(game.Root, "BepInEx", "plugins");
-        if (!Directory.Exists(pluginsAbs))
-            return OpResult.Fail("还没有启用 Mod 支持（找不到 BepInEx\\plugins）。先打开上面的开关再装组件。");
+        var status = LoaderInspector.Inspect(game, _store);
+        if (!status.CorePresent)
+            return OpResult.Fail("还没有启用 Mod 支持。先打开上面的开关再装组件。");
 
         if (ProcessGuard.IsGameRunning())
             return OpResult.Fail("游戏正在运行，请先完全退出游戏再安装组件。");
+
+        // 精简版 loader 不再预置 plugins 目录；需要时由组件安装创建。
+        Directory.CreateDirectory(pluginsAbs);
 
         string? temp = null;
         try

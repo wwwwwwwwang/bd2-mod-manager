@@ -65,6 +65,7 @@ dotnet run --project tests/BD2ModManager.Core.Tests -c Release
 | 产物 | 内容 | 说明 |
 |---|---|---|
 | `out/gui/BD2ModManager.exe` | 图形界面，自包含单文件 | loader 包与 `BD2SkinUnlock.dll` 已内嵌；约 45 MB，唯一发布物 |
+| `out/cli/bd2mm.exe` | 命令行版 | 开发调试用，CI 会构建，不进入 Release |
 | `dist/bd2-loader.zip` | loader 分发包 | 构建中间产物，不单独发布 |
 | `src/.../BD2SkinUnlock.dll` | 自研解锁插件 | 构建中间产物，不单独发布 |
 
@@ -122,7 +123,7 @@ manifest.json                        每个文件 path + size + sha256（当前 
 6. 跑 `Core.Tests`（会读 `dist/bd2-loader.zip` 走完整安装 / 卸载）；
 7. 把 loader 包与插件拷进 GUI 的 `Assets/`；
 8. `dotnet restore` / `build`；
-9. `dotnet publish` 出 GUI 单文件；
+9. `dotnet publish` 出 GUI 单文件；同时构建/发布 CLI 到调试产物（不进入 Release）；
 10. 上传调试产物（保留 7 天）。
 
 ### `.github/workflows/auto-tag.yml`

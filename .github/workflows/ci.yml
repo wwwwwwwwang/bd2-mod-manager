@@ -69,10 +69,13 @@ jobs:
       - name: 还原依赖
         run: |
           dotnet restore src/BD2ModManager.Core/BD2ModManager.Core.csproj
+          dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
           dotnet restore src/BD2ModManager.Gui/BD2ModManager.Gui.csproj
 
       - name: 编译（Release）
-        run: dotnet build src/BD2ModManager.Gui/BD2ModManager.Gui.csproj -c Release --no-restore
+        run: |
+          dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj -c Release --no-restore
+          dotnet build src/BD2ModManager.Gui/BD2ModManager.Gui.csproj -c Release --no-restore
 
       - name: 发布图形界面（win-x64 单文件）
         run: |
@@ -83,10 +86,20 @@ jobs:
             -p:EnableCompressionInSingleFile=true \
             -o out/gui
 
+      - name: 发布命令行（win-x64 单文件，仅开发调试）
+        run: |
+          dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
+            -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -o out/cli
+
       - name: 校验产物存在
         run: |
-          ls -lh out/gui/BD2ModManager.exe
+          ls -lh out/gui/BD2ModManager.exe out/cli/bd2mm.exe
           test -f out/gui/BD2ModManager.exe || (echo "::error::未生成图形界面 exe"; exit 1)
+          test -f out/cli/bd2mm.exe || (echo "::error::未生成 bd2mm.exe"; exit 1)
 
       - name: 上传构建产物（仅调试用）
         uses: actions/upload-artifact@v7
@@ -94,6 +107,7 @@ jobs:
           name: bd2modmanager-${{ steps.ver.outputs.version }}-win-x64-dev
           path: |
             out/gui/BD2ModManager.exe
+            out/cli/bd2mm.exe
             dist/bd2-loader.zip
             src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll
           retention-days: 7

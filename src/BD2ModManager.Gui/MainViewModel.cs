@@ -98,7 +98,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public bool HasNoComponents => Components.Count == 0;
     public string ComponentCountText => Components.Count == 0 ? "无" : $"{Components.Count} 个";
-    public bool CanManageComponents => HasGame && !IsBusy && !GameRunning;
+    public bool CanManageComponents => HasGame && !IsBusy && !GameRunning && ToggleOn;
 
     public bool GameRunning
     {
@@ -168,6 +168,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set
         {
             if (!Set(ref _toggleOn, value)) return;
+            OnPropertyChanged(nameof(CanManageComponents));
             if (_syncing) return;
             _ = ApplyToggleAsync(value);
         }
@@ -554,6 +555,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private async Task InstallComponentAsync()
     {
         if (_game == null) { Log("还没有找到游戏。"); return; }
+        if (!ToggleOn) { Log("请先打开「启用 Mod 支持」，再安装组件。"); return; }
         if (ProcessGuard.IsGameRunning())
         {
             Log("游戏正在运行，请先完全退出游戏。");
@@ -593,6 +595,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private async Task InstallBuiltInAsync()
     {
         if (_game == null) { Log("还没有找到游戏。"); return; }
+        if (!ToggleOn) { Log("请先打开「启用 Mod 支持」，再安装内置插件。"); return; }
         if (ProcessGuard.IsGameRunning())
         {
             Log("游戏正在运行，请先完全退出游戏。");
