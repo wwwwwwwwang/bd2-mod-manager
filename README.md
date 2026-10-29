@@ -37,11 +37,19 @@
 >
 > 偏好命令行？发布包内的 `bd2mm.exe` 提供 `find` / `status` / `install` / `uninstall` / `plugins` / `components` 等命令，运行 `bd2mm --help` 查看完整用法。
 
-## 📸 界面
+## 📦 发布产物
 
-![BD2ModManager 主界面](docs/images/gui-main.png)
+Release 里通常包含以下文件，普通用户只需要第一个：
 
-*主界面（首次使用）：游戏位置、Mod 总开关、第三方组件、插件列表与日志。*
+| 文件 | 用途 | 说明 |
+|---|---|---|
+| `BD2ModManager-<版本>-win-x64.exe` | 图形界面 | **推荐**；loader 包与内置解锁插件已内嵌，双击即用 |
+| `bd2mm-<版本>-win-x64.exe` | 命令行版 | 给批处理、排查或自动化使用 |
+| `bd2-loader-<版本>.zip` | loader 分发包 | GUI 已内嵌；只有手动安装或单独取用 loader 时才需要 |
+| `BD2SkinUnlock.dll` | 内置皮肤解锁插件 | GUI 已内嵌；只有手动安装或旧版工具才需要 |
+| `SHA256SUMS.txt` | 校验和 | 下载后核对文件完整性 |
+
+> 不要混用旧版 GUI 与新版 loader 包；下载时以文件名中的版本号为准。
 
 ## ❓ 常见问题
 

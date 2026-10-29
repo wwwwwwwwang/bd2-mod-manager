@@ -50,8 +50,7 @@ BD2ModManager/
 │   ├── ARCHITECTURE.md
 │   ├── BUILD.md
 │   ├── COMPLIANCE.md
-│   ├── PLUGIN_SKIN_UNLOCK.md
-│   └── images/gui-main.png
+│   └── PLUGIN_SKIN_UNLOCK.md
 ├── scripts/
 │   ├── package_loader.py        # 从官方 release 组装 loader 包
 │   ├── prepare_refs.py          # 拆出编译插件所需的引用程序集
