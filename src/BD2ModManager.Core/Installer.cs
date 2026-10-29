@@ -412,10 +412,12 @@ public sealed class LoaderInstaller
         if (!st.Present)
             return OpResult.Fail("目录里没有 BepInEx 痕迹，无需清理。");
 
-        if (st.CorePresent)
+        if (st.CorePresent || st.IncompleteLoader)
             return OpResult.Fail(
-                "loader 核心仍在，不能用残留清理。",
-                "请用「启用 Mod 支持」开关走正常还原流程。");
+                st.IncompleteLoader
+                    ? "loader 不完整，不能用残留清理。"
+                    : "loader 核心仍在，不能用残留清理。",
+                "请用「启用 Mod 支持」开关走修复或正常还原流程。");
 
         if (ProcessGuard.IsGameRunning())
             return OpResult.Fail("游戏正在运行，请先完全退出游戏。");

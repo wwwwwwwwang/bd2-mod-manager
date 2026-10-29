@@ -19,10 +19,15 @@ public sealed class LoaderStatus
     public required bool Present { get; init; }
 
     /// <summary>
-    /// loader 核心是否还在（winhttp.dll 或 BepInEx/core/BepInEx.dll）。
-    /// false 表示目录里只剩缓存、日志之类的运行时痕迹，游戏根本不会加载任何插件。
+    /// loader 是否完整可用：winhttp.dll、doorstop_config.ini、BepInEx/core/BepInEx.dll
+    /// 三者都存在。false 表示游戏不会加载任何插件。
     /// </summary>
     public bool CorePresent { get; init; }
+
+    /// <summary>
+    /// 目录里有 loader 痕迹但缺少核心文件，需要重新安装而不是只装插件。
+    /// </summary>
+    public bool IncompleteLoader { get; init; }
 
     /// <summary>
     /// 是否还有本工具能清理的 loader 运行时痕迹（缓存、日志、loader 自带配置等）。
@@ -34,7 +39,7 @@ public sealed class LoaderStatus
     /// 只剩本工具能清的痕迹，清完就干净了。
     /// 注意别用「目录还在」来判断：用户把插件留在 plugins 里时，目录永远在。
     /// </summary>
-    public bool ResidueOnly => Present && !CorePresent && HasTraces;
+    public bool ResidueOnly => Present && !CorePresent && !IncompleteLoader && HasTraces;
 
     public string? DoorstopVersion { get; init; }
     public string? BepInExVersion { get; init; }

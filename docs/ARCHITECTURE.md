@@ -110,7 +110,8 @@ BD2ModManager/
   → 读取 manifest.json
   → 逐文件校验 SHA256（失败即拒绝）
   → 检查游戏进程（运行中即拒绝）
-  → 检查是否已有他人安装（无状态记录即拒绝，除非 force）
+  → 检查 loader 完整性（winhttp.dll + doorstop_config.ini + BepInEx/core/BepInEx.dll）
+  → 不完整时走修复安装；已有完整他人安装时无状态记录即拒绝，除非 force
   → 逐级创建目录并记录每一层
   → 已存在文件先备份，再原子复制（.bd2mm.tmp → Move）
   → 写入安装状态
@@ -211,7 +212,7 @@ GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时
 - **语义是注入 / 卸载，不是替换 / 还原**。除 `winhttp.dll` 是劫持入口外，BepInEx 全部是新增文件；游戏本体零改动。
 - **卸载禁止整目录删除**。只按清单删自己写过的东西；用户改过的保留。
 - **区分两条分发路径**：官网 `BD2StarterSetup.exe` 安装版可支持；Google Play Games 版（`BrownDust2 (GPG)`）结构不同，应识别并拒绝。BD2 不在 Steam。
-- **GUI 只保留一键开关**：没有 BepInEx 时，打开 = 安装 loader + 内置解锁插件；已有 BepInEx 时，打开 = 只安装内置解锁插件，不覆盖现有 loader。关闭时对应移除插件和本工具写入的 loader。
+- **GUI 只保留一键开关**：没有 BepInEx 时，打开 = 安装 loader + 内置解锁插件；已有**完整** BepInEx 时，打开 = 只安装内置解锁插件，不覆盖现有 loader；如果 loader 不完整（例如只有 `winhttp.dll`、缺少 `BepInEx/core`），则视为需要修复，重新安装完整 loader 后再安装插件。
 - **不做免杀**。无签名 exe 写 DLL 必被杀软误报，只能靠开源、不混淆、不上壳缓解；项目不承诺绕过安全软件。
 - **源码是唯一真相**。发布物由 CI 从源码构建；仓库不提交 65 MB 的自包含 exe。
 

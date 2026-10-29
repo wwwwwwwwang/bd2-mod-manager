@@ -16,7 +16,14 @@ public static class LoaderInspector
         var doorstopVer = Path.Combine(game.Root, ".doorstop_version");
 
         bool present = Directory.Exists(bepDir) || File.Exists(winhttp) || File.Exists(doorstopIni);
-        bool corePresent = File.Exists(winhttp) || File.Exists(Path.Combine(bepDir, "core", "BepInEx.dll"));
+        var coreDir = Path.Combine(bepDir, "core");
+        var coreDll = Path.Combine(coreDir, "BepInEx.dll");
+        bool corePresent = File.Exists(winhttp) &&
+                           File.Exists(doorstopIni) &&
+                           File.Exists(coreDll);
+        bool incompleteLoader = present && !corePresent &&
+            (File.Exists(winhttp) || File.Exists(doorstopIni) ||
+             Directory.Exists(coreDir) || File.Exists(coreDll));
 
         // 只有「本工具能清的 loader 运行时产物」才算痕迹。
         // plugins 里放着的插件不算：那是用户的东西，删不掉，也没法让目录消失。
@@ -34,17 +41,20 @@ public static class LoaderInspector
         // 部分安装的判定
         if (present && !corePresent)
         {
-            // 核心已经不在了，加载不了任何插件，也谈不上「他人安装」。
-            // 但要区分两类：还有东西可清，还是只剩插件。
-            if (hasTraces)
+            if (incompleteLoader)
+            {
+                if (!File.Exists(winhttp))
+                    warnings.Add("缺少 winhttp.dll —— loader 不完整");
+                if (!File.Exists(coreDll))
+                    warnings.Add("缺少 BepInEx/core/BepInEx.dll —— loader 不完整");
+                if (!File.Exists(doorstopIni))
+                    warnings.Add("缺少 doorstop_config.ini —— loader 不完整");
+            }
+            else if (hasTraces)
+            {
+                // 核心已经不在了，加载不了任何插件，也谈不上「他人安装」。
                 warnings.Add("loader 核心已不在，剩余的是缓存与日志残留，可一键清理");
-        }
-        else if (present)
-        {
-            if (!File.Exists(winhttp)) warnings.Add("缺少 winhttp.dll —— loader 不会生效");
-            if (!Directory.Exists(Path.Combine(bepDir, "core")))
-                warnings.Add("缺少 BepInEx/core —— loader 不完整");
-            if (!File.Exists(doorstopIni)) warnings.Add("缺少 doorstop_config.ini");
+            }
         }
 
         string? doorVer = null;
@@ -54,12 +64,11 @@ public static class LoaderInspector
         }
 
         string? bepVer = null;
-        var bepDll = Path.Combine(bepDir, "core", "BepInEx.dll");
-        if (File.Exists(bepDll))
+        if (File.Exists(coreDll))
         {
             try
             {
-                var vi = FileVersionInfo.GetVersionInfo(bepDll);
+                var vi = FileVersionInfo.GetVersionInfo(coreDll);
                 // ProductVersion 常带 "+<提交哈希>" 或 " (build ...)"，只取版本号本身
                 bepVer = NormalizeVersion(vi.ProductVersion) ?? NormalizeVersion(vi.FileVersion);
             }
@@ -75,6 +84,7 @@ public static class LoaderInspector
         {
             Present = present,
             CorePresent = corePresent,
+            IncompleteLoader = incompleteLoader,
             HasTraces = hasTraces,
             DoorstopVersion = doorVer,
             BepInExVersion = bepVer,

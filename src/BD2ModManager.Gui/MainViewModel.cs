@@ -40,6 +40,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _unreadLogs;
     private bool _loaderPresent;
     private bool _usingExternalLoader;
+    private bool _incompleteLoader;
     private bool _updateAvailable;
     private bool _checkingUpdate;
     private bool _toastVisible;
@@ -194,6 +195,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set => Set(ref _usingExternalLoader, value);
     }
 
+    public bool IncompleteLoader
+    {
+        get => _incompleteLoader;
+        private set => Set(ref _incompleteLoader, value);
+    }
+
     public bool UpdateAvailable
     {
         get => _updateAvailable;
@@ -230,19 +237,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ? "正在同步组件"
         : ToggleOn
             ? "已启用 Mod 支持"
-            : UsingExternalLoader
-                ? "已检测到 BepInEx"
-                : LoaderPresent ? "已安装 loader · 未启用插件" : "未启用 · 原生纯净状态";
+            : IncompleteLoader
+                ? "loader 不完整"
+                : UsingExternalLoader
+                    ? "已检测到 BepInEx"
+                    : LoaderPresent ? "已安装 loader · 未启用插件" : "未启用 · 原生纯净状态";
 
     public string HeroHint => IsBusy
         ? (string.IsNullOrWhiteSpace(BusyText) ? "正在准备…" : BusyText)
         : ToggleOn
             ? ""
-            : LoaderPresent
-                ? UsingExternalLoader
-                    ? "点击开关只安装内置解锁插件，不会覆盖现有 BepInEx"
-                    : "点击开关只安装内置解锁插件，不会重装 loader"
-                : "点击中央开关，一键安装解锁插件与 Loader";
+            : IncompleteLoader
+                ? "点击开关会重新安装完整 loader，再安装内置解锁插件"
+                : LoaderPresent
+                    ? UsingExternalLoader
+                        ? "点击开关只安装内置解锁插件，不会覆盖现有 BepInEx"
+                        : "点击开关只安装内置解锁插件，不会重装 loader"
+                    : "点击中央开关，一键安装解锁插件与 Loader";
 
     public bool ShowHeroHint => IsBusy || !ToggleOn;
 
@@ -295,6 +306,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ShowHeroHint));
         OnPropertyChanged(nameof(LoaderPresent));
         OnPropertyChanged(nameof(UsingExternalLoader));
+        OnPropertyChanged(nameof(IncompleteLoader));
         OnPropertyChanged(nameof(PowerLabel));
         OnPropertyChanged(nameof(PowerBackground));
         OnPropertyChanged(nameof(PowerTextBrush));
@@ -528,6 +540,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             StatusBrush = Brush.Parse("#D97706");
             LoaderPresent = false;
             UsingExternalLoader = false;
+            IncompleteLoader = false;
             ShowCleanResidue = false;
             Plugins.Clear();
             Components.Clear();
@@ -543,8 +556,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var hasUnlock = comps.Any(c => IsUnlockPlugin(c.Name)) ||
                         st.Plugins.Any(p => IsUnlockPlugin(p.Name));
 
-        LoaderPresent = st.CorePresent;
+        LoaderPresent = st.CorePresent || st.IncompleteLoader;
         UsingExternalLoader = st.CorePresent && !st.ManagedByUs;
+        IncompleteLoader = st.IncompleteLoader;
 
         _syncing = true;
         // 开关跟着“内置解锁插件是否已安装”走，而不是只看 loader 核心。
@@ -554,8 +568,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (!st.CorePresent)
         {
-            // 没有 loader 核心，游戏不会加载任何插件。三种情况分开说，免得用户以为没清干净。
-            if (st.ResidueOnly)
+            // 没有完整 loader，游戏不会加载任何插件。几种情况分开说，免得用户以为没清干净。
+            if (st.IncompleteLoader)
+            {
+                StatusText = "loader 不完整";
+                StatusHint = "缺少 BepInEx/core/BepInEx.dll 或 doorstop 配置，游戏不会加载插件";
+                ToggleHint = "打开开关会重新安装完整 loader，并安装内置皮肤解锁插件。";
+                StatusBrush = Brush.Parse("#D97706");
+            }
+            else if (st.ResidueOnly)
             {
                 StatusText = "仅剩残留";
                 StatusHint = "loader 已移除，只剩缓存与日志";

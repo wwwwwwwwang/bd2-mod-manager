@@ -13,6 +13,7 @@ BD2ModManager 只做两件事：
 它刻意不做这些事：
 
 - **不修改游戏本体**：`BrownDust II.exe`、`BrownDust II_Data` 与存档都不碰。
+- **loader 完整性**：只有 `winhttp.dll`、`doorstop_config.ini`、`BepInEx/core/BepInEx.dll` 同时存在才算可用；不完整时走修复安装，不能只装插件。
 - **几乎不联网**：GUI / CLI / 内置插件运行时不发游戏数据；GUI 启动时可检查 GitHub Release 更新，只读取版本元数据，不下载或执行文件；loader 包只在构建阶段从官方 release 下载。
 - **不删除来源不明的文件**：没有安装记录就不做通用卸载；残留清理也只碰已知的 loader 运行时产物。
 - **不收录闭源插件**：发布包只含本仓库代码与有再分发许可的开源组件。

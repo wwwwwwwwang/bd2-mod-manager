@@ -98,7 +98,9 @@ public sealed class ComponentManager
         var pluginsAbs = Path.Combine(game.Root, "BepInEx", "plugins");
         var status = LoaderInspector.Inspect(game, _store);
         if (!status.CorePresent)
-            return OpResult.Fail("还没有启用 Mod 支持。先打开上面的开关再装组件。");
+            return OpResult.Fail(status.IncompleteLoader
+                ? "loader 不完整，无法加载插件。请先重新安装完整 loader。"
+                : "还没有启用 Mod 支持。先打开上面的开关再装组件。");
 
         if (ProcessGuard.IsGameRunning())
             return OpResult.Fail("游戏正在运行，请先完全退出游戏再安装组件。");

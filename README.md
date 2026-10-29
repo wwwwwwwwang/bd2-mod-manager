@@ -70,7 +70,7 @@ BD2ModManager-<版本>-win-x64.exe
 
 **我已经装过 BepInEx 怎么办？**
 
-工具会复用现有 BepInEx，只安装内置解锁插件，不覆盖现有 loader；关闭开关也只移除解锁插件，不会卸载原有 BepInEx。
+工具会复用**完整的**现有 BepInEx，只安装内置解锁插件，不覆盖现有 loader；关闭开关也只移除解锁插件，不会卸载原有 BepInEx。如果 `BepInEx/core` 或 `doorstop_config.ini` 缺失，会提示 loader 不完整并重新安装完整 loader。
 
 ## 🛠️ 进阶与开发者文档
 

@@ -22,6 +22,7 @@ internal static class Program
 
         try
         {
+            IncompleteLoaderDetection();
             ResidueDetection();
             ResidueCleanup();
             TogglePathContract();
@@ -36,6 +37,42 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine($"通过 {_pass} 项，失败 {_fail} 项。");
         return _fail == 0 ? 0 : 1;
+    }
+
+    // ---------------------------------------------------------------- 场景 0
+
+    /// <summary>
+    /// 真实故障：只有 winhttp.dll，BepInEx/core 缺失。
+    /// 这不能被当成“已有可用 BepInEx”，否则只会装插件，插件永远不会加载。
+    /// </summary>
+    private static void IncompleteLoaderDetection()
+    {
+        Console.WriteLine("[0] 不完整 loader：只有 winhttp.dll");
+        var root = NewGameDir("incomplete");
+        var store = NewStore();
+        var game = Game(root);
+
+        Directory.CreateDirectory(Path.Combine(root, "BepInEx"));
+        File.WriteAllText(Path.Combine(root, "winhttp.dll"), "dummy");
+
+        var st = LoaderInspector.Inspect(game, store);
+
+        Check("不完整 loader 不算 CorePresent", !st.CorePresent);
+        Check("标记为 IncompleteLoader", st.IncompleteLoader);
+        Check("不被当成普通残留", !st.ResidueOnly);
+        Check("警告包含 core 缺失",
+            st.Warnings.Any(w => w.Contains("BepInEx/core", StringComparison.OrdinalIgnoreCase)),
+            string.Join(" | ", st.Warnings));
+
+        var src = NewDir("IncompleteComp");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "IncompleteComp.dll"), "dll");
+
+        var install = new ComponentManager(store).Install(game, src);
+        Check("不完整 loader 下拒绝安装组件", !install.Success,
+            string.Join(" | ", install.Errors));
+
+        Console.WriteLine();
     }
 
     // ---------------------------------------------------------------- 场景 1
@@ -164,9 +201,11 @@ internal static class Program
         var game = Game(root);
         var comp = new ComponentManager(store);
 
-        // 模拟精简版 loader：有核心，但没有预置 plugins 目录
+        // 模拟完整的精简版 loader：有入口、配置和核心，但没有预置 plugins 目录
         Directory.CreateDirectory(Path.Combine(root, "BepInEx", "core"));
         File.WriteAllText(Path.Combine(root, "BepInEx", "core", "BepInEx.dll"), "dummy");
+        File.WriteAllText(Path.Combine(root, "winhttp.dll"), "dummy");
+        File.WriteAllText(Path.Combine(root, "doorstop_config.ini"), "");
 
         var src = NewDir("CompDemo");
         Directory.CreateDirectory(src);
