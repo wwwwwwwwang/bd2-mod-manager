@@ -27,17 +27,15 @@ public partial class MainWindow : Window
 
     private void TickSpinner()
     {
-        if (LoadingRing.RenderTransform is not RotateTransform rotate) return;
-
         if (DataContext is not MainViewModel vm || !vm.IsBusy)
         {
             _spinnerAngle = 0;
-            rotate.Angle = 0;
+            LoadingRing.Angle = 0;
             return;
         }
 
         _spinnerAngle = (_spinnerAngle + 5) % 360;
-        rotate.Angle = _spinnerAngle;
+        LoadingRing.Angle = _spinnerAngle;
     }
 
     protected override void OnClosed(EventArgs e)

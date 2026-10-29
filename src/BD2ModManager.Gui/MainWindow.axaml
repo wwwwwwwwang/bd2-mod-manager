@@ -1,6 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:BD2ModManager.Gui"
+        xmlns:controls="using:BD2ModManager.Gui.Controls"
+        xmlns:primitives="using:Avalonia.Controls.Primitives"
         x:Class="BD2ModManager.Gui.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="BD2ModManager"
@@ -86,17 +88,11 @@
             <Ellipse Width="164" Height="164" Stroke="#DBEAFE" StrokeThickness="4"
                      HorizontalAlignment="Center" VerticalAlignment="Center" />
 
-            <!-- 加载旋转虚线环 -->
-            <Ellipse x:Name="LoadingRing"
-                     Width="164" Height="164"
-                     Stroke="{StaticResource AccentBrush}" StrokeThickness="4"
-                     StrokeDashArray="2,8"
-                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                     IsVisible="{Binding IsBusy}">
-              <Ellipse.RenderTransform>
-                <RotateTransform CenterX="82" CenterY="82" />
-              </Ellipse.RenderTransform>
-            </Ellipse>
+            <!-- 加载旋转弧 -->
+            <controls:LoadingSpinner x:Name="LoadingRing"
+                                     Width="164" Height="164"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                                     IsVisible="{Binding IsBusy}" />
 
             <Button Classes="power"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -134,8 +130,8 @@
 
         <!-- 底部胶囊 -->
         <StackPanel Grid.Row="2" Margin="18,0,18,14" Spacing="10">
-          <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-            <Button Grid.Column="0" Classes="pill"
+          <primitives:UniformGrid Columns="2" Rows="1">
+            <Button Classes="pill" Margin="0,0,4,0"
                     Command="{Binding OpenPathSheetCommand}">
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Path Data="M3 6.5C3 5.7 3.7 5 4.5 5H9L11 7H19.5C20.3 7 21 7.7 21 8.5V18.5C21 19.3 20.3 20 19.5 20H4.5C3.7 20 3 19.3 3 18.5V6.5Z"
@@ -154,7 +150,7 @@
               </Grid>
             </Button>
 
-            <Button Grid.Column="1" Classes="pill"
+            <Button Classes="pill" Margin="4,0,0,0"
                     Command="{Binding OpenLogsSheetCommand}">
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Path Data="M4 5H20V19H4V5Z M7 9L10 12L7 15 M12 15H17"
@@ -182,7 +178,7 @@
                       Margin="6,0,0,0" VerticalAlignment="Center" />
               </Grid>
             </Button>
-          </Grid>
+          </primitives:UniformGrid>
         </StackPanel>
       </Grid>
     </Border>
