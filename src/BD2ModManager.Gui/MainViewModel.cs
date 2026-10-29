@@ -69,7 +69,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string Version { get; }
     public string Title => "BD2ModManager";
-    public string Subtitle => "Brown Dust 2 · 加载器与插件管理";
+    public string Subtitle => "Brown Dust 2 · 一键皮肤解锁";
     public string MinimizeToTrayHint { get; }
 
     public ObservableCollection<PluginItem> Plugins { get; } = new();
@@ -278,7 +278,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 StatusText = "仅剩残留";
                 StatusHint = "loader 已移除，只剩缓存与日志";
-                ToggleHint = "打开开关会重新装一份完整的 loader；也可以点下面「清理残留」把目录彻底还原。";
+                ToggleHint = "打开开关会重新安装 loader 和内置皮肤解锁插件。";
             }
             else if (st.Plugins.Count > 0)
             {
@@ -286,13 +286,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 StatusText = "未启用";
                 // 这里不写数量：组件区与插件区是分开显示的，写总数会和下面的列表对不上
                 StatusHint = "plugins 里还有插件，loader 还没装，游戏不会加载";
-                ToggleHint = "打开后会装一份完整的 loader，plugins 里现有的插件随之生效。";
+                ToggleHint = "打开后会安装 loader 和内置皮肤解锁插件，现有插件也会随之生效。";
             }
             else
             {
                 StatusText = "未启用";
                 StatusHint = "游戏目录干净，可以安全安装";
-                ToggleHint = "打开后游戏将加载 BepInEx 插件；随时可关闭并还原。";
+                ToggleHint = "打开会安装 BepInEx 和内置皮肤解锁插件；关闭会完整还原。";
             }
             StatusBrush = Brush.Parse("#9AA1AA");
         }
@@ -301,7 +301,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var door = string.IsNullOrWhiteSpace(st.DoorstopVersion) ? "" : $" · Doorstop {st.DoorstopVersion}";
             StatusText = "已启用";
             StatusHint = $"BepInEx {st.BepInExVersion ?? "未知"}{door} · 本工具安装";
-            ToggleHint = "关闭会删除本工具安装的文件，并还原被覆盖的原文件。";
+            ToggleHint = "关闭会移除内置解锁插件和本工具安装的 loader，并还原被覆盖的原文件。";
             StatusBrush = Brush.Parse("#16A34A");
         }
         else
@@ -411,7 +411,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (r.Success)
             {
                 ShowPickPackage = false;
-                Log("装好了。启动游戏即可生效。");
+                BusyText = "正在安装内置解锁插件…";
+                var pluginOk = await InstallBuiltInCoreAsync(game);
+                if (pluginOk)
+                    Log("已启用 Mod 支持，并安装内置皮肤解锁插件。启动游戏即可生效。");
+                else
+                    Log("Mod 支持已启用，但内置解锁插件安装失败；请关闭再打开开关重试。");
             }
             else
             {
@@ -603,6 +608,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        IsBusy = true;
+        BusyText = "正在安装内置插件…";
+        try
+        {
+            await InstallBuiltInCoreAsync(_game);
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
+            RefreshStatus();
+        }
+    }
+
+    /// <summary>安装内嵌的 BD2SkinUnlock.dll；调用方负责 IsBusy / BusyText。</summary>
+    private async Task<bool> InstallBuiltInCoreAsync(GameInstall game)
+    {
         byte[]? payload;
         try
         {
@@ -611,39 +633,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             Log($"读取内置插件失败：{ex.Message}");
-            return;
+            return false;
         }
 
         if (payload == null)
         {
-            Log("这个构建里没有内置插件。可以从 Release 页面下载 BD2SkinUnlock.dll，" +
-                "再用「安装组件…」选中它所在的文件夹。");
-            return;
+            Log("这个构建缺少内置解锁插件，请使用官方 Release 的 GUI，或自行构建。");
+            return false;
         }
 
         var staging = Path.Combine(Path.GetTempPath(), "bd2mm-builtin-" + Guid.NewGuid().ToString("N"));
-
-        IsBusy = true;
-        BusyText = "正在安装内置插件…";
         try
         {
             Directory.CreateDirectory(staging);
             File.WriteAllBytes(Path.Combine(staging, "BD2SkinUnlock.dll"), payload);
 
-            var game = _game;
             var r = await Task.Run(() => _components.Install(game, staging));
             WriteResult(r);
+            return r.Success;
         }
         catch (Exception ex)
         {
             Log($"安装内置插件出错：{ex.Message}");
+            return false;
         }
         finally
         {
-            IsBusy = false;
-            BusyText = "";
             try { Directory.Delete(staging, true); } catch { }
-            RefreshStatus();
         }
     }
 

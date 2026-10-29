@@ -4,8 +4,8 @@
         x:Class="BD2ModManager.Gui.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="BD2ModManager"
-        Width="680" Height="830"
-        MinWidth="600" MinHeight="680"
+        Width="680" Height="640"
+        MinWidth="600" MinHeight="560"
         Background="{StaticResource WindowBg}"
         WindowStartupLocation="CenterScreen">
 
@@ -84,21 +84,13 @@
                          TextTrimming="CharacterEllipsis" />
             </StackPanel>
 
-            <!-- 只剩残留时露出来：核心已删，缓存日志可以一键清掉 -->
-            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowCleanResidue}">
-              <Button Classes="ghost" Content="清理残留" Command="{Binding CleanResidueCommand}"
-                      IsEnabled="{Binding CanCleanResidue}" />
-              <TextBlock Text="只删缓存与日志，plugins 里的插件保留"
-                         FontSize="11" Foreground="{StaticResource TextSecondary}"
-                         VerticalAlignment="Center" />
-            </StackPanel>
           </StackPanel>
         </Border>
 
         <!-- 主开关 -->
         <Border Classes="card">
           <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="启用 Mod 支持"
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="一键启用"
                        FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
 
             <ToggleButton Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
@@ -129,106 +121,6 @@
                        Text="把 bd2-loader.zip 放到本程序旁边，或直接选中它。" />
             <Button Classes="primary" Content="选择加载器包" HorizontalAlignment="Left"
                     Margin="0,4,0,0" Command="{Binding PickPackageCommand}" />
-          </StackPanel>
-        </Border>
-
-        <!-- 第三方组件 -->
-        <Border Classes="card">
-          <StackPanel Spacing="10">
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
-                          VerticalAlignment="Center">
-                <TextBlock Classes="label" Text="第三方组件" VerticalAlignment="Center" />
-                <Border Background="#F1F3F5" CornerRadius="9" Padding="7,1"
-                        VerticalAlignment="Center" IsVisible="{Binding !HasNoComponents}">
-                  <TextBlock Classes="muted" Text="{Binding ComponentCountText}" />
-                </Border>
-              </StackPanel>
-
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
-                          VerticalAlignment="Center">
-                <Button Classes="ghost" Content="安装内置插件"
-                        Command="{Binding InstallBuiltInCommand}"
-                        IsEnabled="{Binding CanManageComponents}" />
-                <Button Classes="ghost" Content="安装组件…"
-                        Command="{Binding InstallComponentCommand}"
-                        IsEnabled="{Binding CanManageComponents}" />
-              </StackPanel>
-            </Grid>
-
-            <ItemsControl ItemsSource="{Binding Components}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:ComponentItem">
-                  <Border Background="#FAFBFC" BorderBrush="#EDEFF2" BorderThickness="1"
-                          CornerRadius="8" Padding="10,8" Margin="0,0,0,2">
-                    <Grid ColumnDefinitions="*,Auto,Auto">
-                      <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}" FontSize="12.5"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding Meta}" Classes="muted"
-                                   TextTrimming="CharacterEllipsis" />
-                      </StackPanel>
-                      <Button Grid.Column="1" Classes="link" Content="移除"
-                              Command="{Binding RemoveCommand}" Margin="0,0,12,0"
-                              VerticalAlignment="Center" />
-                      <ToggleButton Grid.Column="2" Classes="switch small"
-                                    VerticalAlignment="Center"
-                                    IsChecked="{Binding Enabled, Mode=TwoWay}" />
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <!-- 空态：用占位块说明这里能做什么，不再只摆一行说明文字 -->
-            <Border IsVisible="{Binding HasNoComponents}" CornerRadius="8"
-                    Background="#FAFBFC" BorderBrush="#E6E8EB" BorderThickness="1"
-                    Padding="12,11">
-              <StackPanel Spacing="4">
-                <TextBlock Text="还没有第三方组件" FontSize="12.5"
-                           Foreground="{StaticResource TextSecondary}" />
-                <TextBlock Classes="muted" TextWrapping="Wrap"
-                           Text="先打开上方「启用 Mod 支持」，再点「安装内置插件」或选择解压后的插件目录。" />
-                <TextBlock Classes="muted" TextWrapping="Wrap"
-                           Text="工具只删自己写过的文件，改过的一律保留。" />
-              </StackPanel>
-            </Border>
-          </StackPanel>
-        </Border>
-
-        <!-- 插件列表 -->
-        <Border Classes="card">
-          <StackPanel Spacing="8">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Classes="label" Text="插件" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="1" Classes="muted" Text="{Binding PluginCountText}"
-                         VerticalAlignment="Center" />
-            </Grid>
-
-            <ItemsControl ItemsSource="{Binding Plugins}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:PluginItem">
-                  <Border Background="#FAFBFC" BorderBrush="#EDEFF2" BorderThickness="1"
-                          CornerRadius="8" Padding="10,8" Margin="0,0,0,2">
-                    <Grid ColumnDefinitions="*,Auto">
-                      <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}" FontSize="12.5"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding Meta}" Classes="muted"
-                                   TextTrimming="CharacterEllipsis" />
-                      </StackPanel>
-                      <ToggleButton Grid.Column="1" Classes="switch small"
-                                    VerticalAlignment="Center"
-                                    IsChecked="{Binding Enabled, Mode=TwoWay}" />
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <TextBlock Classes="muted" TextWrapping="Wrap"
-                       IsVisible="{Binding HasNoPlugins}"
-                       Text="还没有插件。启用 Mod 支持后，把 .dll 放进游戏目录下的 BepInEx\plugins 即可，重启游戏生效。" />
           </StackPanel>
         </Border>
 
