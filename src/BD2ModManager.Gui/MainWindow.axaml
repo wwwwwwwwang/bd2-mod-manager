@@ -64,10 +64,8 @@
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="1"
                       VerticalAlignment="Top" Margin="0,2,0,0">
             <Button Classes="window-control" Click="Minimize_Click" ToolTip.Tip="最小化">
-              <Path Data="M5 12H19"
-                    Stroke="{StaticResource TextMuted}"
-                    StrokeThickness="1.5" StrokeLineCap="Round"
-                    Width="14" Height="14" Stretch="Uniform" />
+              <Border Width="12" Height="1.5" CornerRadius="1"
+                      Background="{StaticResource TextMuted}" />
             </Button>
             <Button Classes="window-control window-close" Click="Close_Click" ToolTip.Tip="关闭">
               <Path Data="M6 6L18 18M18 6L6 18"
