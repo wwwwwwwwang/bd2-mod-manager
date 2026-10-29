@@ -60,6 +60,26 @@ namespace Suiren.BD2.SkinUnlock
                 Complaint("没找到 SetSkin，点击皮肤仍会走服务器（可能失败）");
             }
 
+            if (r.AddSkin != null)
+            {
+                if (TryPatch(harmony, r.AddSkin, nameof(AddSkin_Prefix), true, "拦截默认皮肤写入"))
+                    installed++;
+            }
+            else
+            {
+                Complaint("没找到 AddPrestigeSkinDBInfo，默认皮肤条目不会被拦下");
+            }
+
+            if (r.LoadTexture != null)
+            {
+                if (TryPatch(harmony, r.LoadTexture, nameof(LoadTexture_Prefix), true, "贴图回调兜底"))
+                    installed++;
+            }
+            else
+            {
+                Complaint("没找到 SkinExchangePopupUI.LoadTexture，未拥有皮肤的格子可能一直转圈");
+            }
+
             Note($"已挂载 {installed} 个补丁。");
             return installed;
         }
@@ -151,7 +171,9 @@ namespace Suiren.BD2.SkinUnlock
         // ------------------------------------------------------------ 补全皮肤列表
 
         /// <summary>
-        /// 游戏问「这件服装有哪些皮肤」时，把设计表里的全部皮肤一起返回。
+        /// 游戏问「这件服装有哪些皮肤」时：
+        ///   1. 先剔掉默认皮肤（designId=0）与设计表里查不到的脏条目；
+        ///   2. 再把设计表里这套服装的全部皮肤补进去。
         /// 未购买的皮肤本来不在玩家数据里，这一步让它们出现在弹窗中。
         /// </summary>
         private static void GetConnected_Postfix(object __instance, ref object __result)
@@ -164,54 +186,92 @@ namespace Suiren.BD2.SkinUnlock
 
             try
             {
-                var costumeId = Convert.ToInt32(r.CostumeId.GetValue(__instance, null));
-                if (costumeId == 0) return;
-                if (!cat.TryGetSkins(costumeId, out var designs) || designs.Count == 0) return;
-
                 var current = __result as IList;
                 if (current == null) return;   // 原方法返回 null 时保持原样，不改变语义
 
-                var seen = new HashSet<int>();
+                var before = current.Count;
+
+                var cleaned = (IList)Activator.CreateInstance(
+                    typeof(List<>).MakeGenericType(r.SkinType));
+
                 foreach (var item in current)
                 {
                     if (item == null) continue;
-                    try { seen.Add(Convert.ToInt32(r.SkinDesignId.GetValue(item, null))); }
-                    catch { }
+
+                    int designId;
+                    try { designId = Convert.ToInt32(r.SkinDesignId.GetValue(item, null)); }
+                    catch { cleaned.Add(item); continue; }
+
+                    // 默认皮肤（0）和表里没有的条目一律不返回
+                    if (designId == 0 || !r.InTable(designId)) continue;
+
+                    cleaned.Add(item);
                 }
 
-                // 全都已经有了，不用动
-                var missing = new List<int>();
-                foreach (var id in designs)
-                {
-                    if (!seen.Contains(id)) missing.Add(id);
-                }
-                if (missing.Count == 0) return;
+                var added = State?.AppendFor(r, __instance, cleaned, cat) ?? 0;
 
-                int selected;
-                try { selected = Convert.ToInt32(r.CostumeDesignId.GetValue(__instance, null)); }
-                catch { selected = 0; }
+                // 过滤和补全都没改动，就别换对象，省得界面白白刷新
+                if (cleaned.Count == before && added == 0) return;
 
-                var fuller = (IList)Activator.CreateInstance(
-                    typeof(List<>).MakeGenericType(r.SkinType));
-                foreach (var item in current) fuller.Add(item);
-
-                foreach (var designId in missing)
-                {
-                    // 已在字典里（之前注入过）就直接复用，避免造出重复对象
-                    var entry = State?.FindEntry(r, designId);
-                    if (entry == null)
-                        entry = State?.CreateEntry(r, costumeId, designId, selected == designId);
-                    if (entry == null) continue;
-
-                    fuller.Add(entry);
-                }
-
-                __result = fuller;
+                __result = cleaned;
             }
             catch (Exception e)
             {
                 Complaint("补全皮肤列表失败：" + e.Message);
             }
+        }
+
+        // ------------------------------------------------------------ 贴图回调兜底
+
+        /// <summary>
+        /// 弹窗给每套皮肤调 LoadTexture(designId, callback) 取头像。
+        /// 未购买的皮肤没有本地资源，回调可能永远不来，格子就一直转圈。
+        /// 这里把回调包一层：0.5 秒内没回就补 null 收尾。
+        ///
+        /// 用 object[] __args 而不是 (int, ref Action&lt;Sprite&gt;)，是为了编译期不依赖 UnityEngine；
+        /// 写回数组即写回 ref 参数。
+        /// </summary>
+        private static void LoadTexture_Prefix(object[] __args)
+        {
+            if (!Active || __args == null || __args.Length < 2) return;
+
+            try
+            {
+                var designId = Convert.ToInt32(__args[0]);
+                var wrapped = TextureGuard.Wrap(__args[1], designId);
+                if (wrapped != null) __args[1] = wrapped;
+            }
+            catch (Exception e)
+            {
+                Complaint("贴图回调兜底失败：" + e.Message);
+            }
+        }
+
+        // ------------------------------------------------------------ 拦截默认皮肤写入
+
+        /// <summary>
+        /// 游戏往皮肤字典写条目时，designId 为 0（默认皮肤）或设计表里查不到的，直接不写。
+        /// 与参考实现一致——这类条目会让弹窗里多出空皮肤。
+        /// </summary>
+        private static bool AddSkin_Prefix(object __0)
+        {
+            if (!Active || __0 == null) return true;
+
+            var r = Refs;
+            if (r == null || !r.Ready) return true;
+
+            try
+            {
+                var designId = Convert.ToInt32(r.SkinDesignId.GetValue(__0, null));
+                if (designId == 0) return false;
+                if (r.GetTableRow != null && !r.InTable(designId)) return false;
+            }
+            catch (Exception e)
+            {
+                Complaint("拦截皮肤写入时出错，交还原方法：" + e.Message);
+            }
+
+            return true;
         }
 
         // ------------------------------------------------------------ 本地切换

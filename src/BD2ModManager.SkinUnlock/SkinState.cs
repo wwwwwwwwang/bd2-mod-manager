@@ -15,6 +15,9 @@ namespace Suiren.BD2.SkinUnlock
         private readonly HashSet<int> _injected = new HashSet<int>();
         private readonly Dictionary<int, int> _selection = new Dictionary<int, int>();
 
+        /// <summary>清理时被移走的原始条目（键 → 对象），退出时原样放回去。</summary>
+        private readonly Dictionary<object, object> _removed = new Dictionary<object, object>();
+
         private object _boundDict;          // 记住注入时用的字典实例，被替换就重来
         private Type _keyType = typeof(int); // 皮肤字典的键类型
 
@@ -104,24 +107,157 @@ namespace Suiren.BD2.SkinUnlock
         /// <summary>移除自己补进去的条目。退出时调用，把内存交还给游戏原本的样子。</summary>
         internal void Rollback(GameRefs r)
         {
-            if (r == null || _injected.Count == 0) return;
+            var dict = r?.GetSkinDict();
 
-            var dict = r.GetSkinDict();
             if (dict != null)
             {
-                foreach (var designId in _injected)
+                if (_injected.Count > 0)
                 {
-                    try
+                    foreach (var designId in _injected)
                     {
-                        var key = ToKey(designId);
-                        if (dict.Contains(key)) dict.Remove(key);
+                        try
+                        {
+                            var key = ToKey(designId);
+                            if (dict.Contains(key)) dict.Remove(key);
+                        }
+                        catch { }
                     }
+                }
+
+                // 清理阶段移走的原始条目放回去（参考实现不做这件事，我们多做一步更安全）
+                foreach (var kv in _removed)
+                {
+                    try { if (!dict.Contains(kv.Key)) dict[kv.Key] = kv.Value; }
                     catch { }
                 }
             }
 
             _injected.Clear();
+            _removed.Clear();
             _boundDict = null;
+        }
+
+        /// <summary>
+        /// 剔除皮肤字典里的脏条目：designId 为 0 的默认项、以及设计表里查不到的项。
+        ///
+        /// 参考实现每 3 秒做一次全表清理。这里行为一致，但会先把移走的原始条目记下来，
+        /// 退出时放回去——否则等于把游戏自己的数据删了还不还。
+        /// </summary>
+        internal int CleanupInvalid(GameRefs r)
+        {
+            if (r == null || !r.Ready) return 0;
+
+            var dict = r.GetSkinDict();
+            if (dict == null || dict.Count == 0) return 0;
+
+            var doomed = new List<object>();
+
+            foreach (DictionaryEntry e in dict)
+            {
+                try
+                {
+                    var designId = Convert.ToInt32(r.SkinDesignId.GetValue(e.Value, null));
+                    if (designId == 0 || !r.InTable(designId)) doomed.Add(e.Key);
+                }
+                catch { }
+            }
+
+            var removed = 0;
+
+            foreach (var key in doomed)
+            {
+                try
+                {
+                    var value = dict[key];
+                    dict.Remove(key);
+
+                    // 自己注入的条目不算「原始数据」，删了不需要还
+                    var isOurs = false;
+                    try
+                    {
+                        var designId = Convert.ToInt32(r.SkinDesignId.GetValue(value, null));
+                        isOurs = _injected.Remove(designId);
+                    }
+                    catch { }
+
+                    if (!isOurs) _removed[key] = value;
+                    removed++;
+                }
+                catch { }
+            }
+
+            return removed;
+        }
+
+        /// <summary>
+        /// 把某件服装在设计表里的全部皮肤补进 <paramref name="target"/>，缺的条目顺手写进字典。
+        /// 供 GetConnectedPrestigeSkinDBInfos 的 Postfix 逐次调用（参考实现同名逻辑）。
+        /// </summary>
+        internal int AppendFor(GameRefs r, object costume, IList target, SkinCatalog cat)
+        {
+            if (r == null || !r.Ready || costume == null || target == null) return 0;
+            if (cat == null || !cat.Ready) return 0;
+
+            int costumeId, currentDesign;
+            try
+            {
+                costumeId = Convert.ToInt32(r.CostumeId.GetValue(costume, null));
+                currentDesign = Convert.ToInt32(r.CostumeDesignId.GetValue(costume, null));
+            }
+            catch { return 0; }
+
+            if (costumeId == 0) return 0;
+            if (!cat.TryGetSkins(costumeId, out var designs) || designs.Count == 0) return 0;
+
+            var seen = new HashSet<int>();
+            foreach (var item in target)
+            {
+                if (item == null) continue;
+                try { seen.Add(Convert.ToInt32(r.SkinDesignId.GetValue(item, null))); }
+                catch { }
+            }
+
+            var dict = r.GetSkinDict();
+            var added = 0;
+
+            foreach (var designId in designs)
+            {
+                if (seen.Contains(designId)) continue;
+
+                object entry = null;
+
+                try
+                {
+                    if (dict != null)
+                    {
+                        var key = ToKey(designId);
+                        if (dict.Contains(key)) entry = dict[key];
+                    }
+                }
+                catch { }
+
+                if (entry == null)
+                {
+                    entry = CreateEntry(r, costumeId, designId, currentDesign == designId);
+                    if (entry == null) continue;
+
+                    // 与参考实现一致：补进列表的同时也写进字典，别的界面读字典时同样能看到
+                    if (dict != null)
+                    {
+                        try
+                        {
+                            dict[ToKey(designId)] = entry;
+                            _injected.Add(designId);
+                        }
+                        catch { }
+                    }
+                }
+
+                try { target.Add(entry); added++; }
+                catch { }
+            }
+
+            return added;
         }
 
         /// <summary>

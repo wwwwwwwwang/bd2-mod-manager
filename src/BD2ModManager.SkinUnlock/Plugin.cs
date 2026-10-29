@@ -12,9 +12,12 @@ namespace Suiren.BD2.SkinUnlock
     /// <summary>
     /// 皮肤解锁 —— 独立实现，MIT。
     ///
-    /// 做的事只有两件：
+    /// 做的事：
     ///   1. 让「已拥有的服装」能选到它全部皮肤（数据来自游戏自带设计表，不硬编码）；
-    ///   2. 点击皮肤时只改本地内存，不向服务器发切换请求。
+    ///   2. 点击皮肤时只改本地内存，不向服务器发切换请求；
+    ///   3. 弹窗贴图 0.5 秒不回调就补 null，避免未拥有的皮肤一直转圈；
+    ///   4. 拦下 designId=0 / 设计表里查不到的皮肤条目；
+    ///   5. 大厅互动场景（PrestigeSkinId != 0 的道具）一并补出来。
     ///
     /// 全程不发网络请求，只动本地数据镜像；退出时把自己加进去的条目清理掉。
     /// </summary>
@@ -22,7 +25,7 @@ namespace Suiren.BD2.SkinUnlock
     public sealed class SkinUnlockPlugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.suiren.bd2.skinunlock";
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
 
         /// <summary>同类插件。两个一起装会互相覆盖同一批补丁，只保留一个。</summary>
         private const string ConflictGuid = "com.example.legacy";
@@ -93,6 +96,10 @@ namespace Suiren.BD2.SkinUnlock
         private void Update()
         {
             if (_stopped || _shutdown) return;
+
+            // 贴图兜底要按帧走：0.5 秒的窗口用 500ms 心跳去判太粗
+            TextureGuard.Tick(TextureGuard.Now);
+
             if (_heartbeat.Elapsed.TotalMilliseconds < 500) return;
             _heartbeat.Restart();
 
@@ -188,6 +195,16 @@ namespace Suiren.BD2.SkinUnlock
                     _lastInjected = injected;
                 }
 
+                // 清掉 designId=0 的默认皮肤与设计表里没有的脏条目（参考实现同样每轮清一次）
+                var cleaned = _state.CleanupInvalid(_refs);
+                if (cleaned > 0 && _verbose.Value)
+                    LogInfo($"清理脏皮肤条目 {cleaned} 条（退出时会放回）");
+
+                // 大厅互动场景：Type=25 的道具，未购入时也要出现在大厅
+                var scenes = InteractionScenes.Inject(_refs);
+                if (scenes > 0)
+                    LogInfo($"补入大厅互动场景 {scenes} 个（当前共 {InteractionScenes.InjectedCount} 个）");
+
                 var reapplied = _state.ReapplySelection(_refs);
                 if (reapplied > 0 && _verbose.Value)
                     LogInfo($"已把 {reapplied} 件服装的选择写回本地数据");
@@ -211,6 +228,8 @@ namespace Suiren.BD2.SkinUnlock
             Patches.Active = false;
 
             try { _state.Rollback(_refs); } catch { }
+            try { InteractionScenes.Rollback(_refs); } catch { }
+            TextureGuard.Clear();
 
             try
             {
@@ -229,7 +248,7 @@ namespace Suiren.BD2.SkinUnlock
             _enabled = Config.Bind("General", "Enabled", true,
                 "总开关。关掉后插件不介入游戏，皮肤列表恢复原样（需要重启游戏）。");
 
-            _reapplyInterval = Config.Bind("General", "ReapplyIntervalSeconds", 2f,
+            _reapplyInterval = Config.Bind("General", "ReapplyIntervalSeconds", 3f,
                 new ConfigDescription(
                     "把已选皮肤写回服装的间隔（秒）。服务器同步会覆盖本地选择，靠这个恢复。",
                     new AcceptableValueRange<float>(0.5f, 60f)));

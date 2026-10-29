@@ -28,6 +28,54 @@ namespace Proto.Net
         public int CostumeDesignId { get; set; }
         public bool IsSet { get; set; }
     }
+
+    /// <summary>道具（大厅互动场景的载体）。Type=25 是皮肤场景。</summary>
+    public class ItemDBInfo
+    {
+        public int Id { get; set; }
+        public bool IsNew { get; set; }
+        public int Type { get; set; }
+    }
+}
+
+namespace FakeGame
+{
+    using Proto.Net;
+
+    /// <summary>皮肤交换弹窗。贴图是异步的：没资源时回调可能永远不来。</summary>
+    public class SkinExchangePopupUI
+    {
+        public static Action<Sprite> LastCallback;
+        public static int Calls;
+
+        public void LoadTexture(int designId, ref Action<Sprite> callback)
+        {
+            Calls++;
+            LastCallback = callback;   // 「资源还没到，先把回调存着」
+        }
+
+        public static void Complete(Sprite sprite)
+        {
+            var cb = LastCallback;
+            LastCallback = null;
+            cb?.Invoke(sprite);
+        }
+
+        public static void Reset()
+        {
+            LastCallback = null;
+            Calls = 0;
+        }
+    }
+}
+
+namespace FakeGame
+{
+    /// <summary>占位的 Sprite。插件不引用 UnityEngine，委托参数类型是运行期取的，随便给个类即可。</summary>
+    public class Sprite
+    {
+        public string Tag = "sprite";
+    }
 }
 
 namespace Proto.Design.common
@@ -39,6 +87,17 @@ namespace Proto.Design.common
 
         public static PrestigeSkinTable GetPrestigeSkinTable(int designId)
             => FakeGame.Database.FindRow(designId);
+    }
+
+    /// <summary>大厅设定表：PrestigeSkinId != 0 的项就是「皮肤互动场景」。</summary>
+    public class LobbySettingItemTable
+    {
+        public int Id { get; set; }
+        public int PrestigeSkinId { get; set; }
+        public int Type { get; set; }
+
+        public static List<LobbySettingItemTable> GetAllLobbySettingItems()
+            => FakeGame.Database.LobbyItems;
     }
 }
 
@@ -74,6 +133,14 @@ namespace FakeGame
         public static readonly Dictionary<int, PrestigeSkinDBInfo> SkinDict =
             new Dictionary<int, PrestigeSkinDBInfo>();
 
+        /// <summary>道具字典。宿主类上还要有一个 List&lt;ItemDBInfo&gt; 静态属性，才认得出这是道具管理类。</summary>
+        public static readonly Dictionary<int, ItemDBInfo> ItemDict =
+            new Dictionary<int, ItemDBInfo>();
+
+        public static List<ItemDBInfo> Items { get; } = new List<ItemDBInfo>();
+
+        public static List<LobbySettingItemTable> LobbyItems { get; } = new List<LobbySettingItemTable>();
+
         private static readonly Dictionary<int, PrestigeSkinTable> Rows =
             new Dictionary<int, PrestigeSkinTable>();
 
@@ -86,6 +153,10 @@ namespace FakeGame
         {
             CostumeDict.Clear();
             SkinDict.Clear();
+            ItemDict.Clear();
+            Items.Clear();
+            LobbyItems.Clear();
+            SkinExchangePopupUI.Reset();
             Rows.Clear();
             DesignIds.Clear();
             SetSkinCalls = 0;

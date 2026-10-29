@@ -40,8 +40,28 @@ namespace Suiren.BD2.SkinUnlock
         // ---- 服装上「查这个服装有哪些皮肤」 ----
         internal MethodInfo GetConnectedSkins;    // instance → List<PrestigeSkinDBInfo>
 
+        // ---- 皮肤弹窗（贴图回调兜底）----
+        internal Type PopupType;                  // SkinExchangePopupUI
+        internal MethodInfo LoadTexture;          // (int designId, ref Action<Sprite> cb)
+
+        // ---- 大厅互动场景 ----
+        internal Type LobbyType;                  // Proto.Design.common.LobbySettingItemTable
+        internal PropertyInfo LobbyId;
+        internal PropertyInfo LobbySkinId;        // PrestigeSkinId
+        internal PropertyInfo LobbyKind;          // Type（仅用于日志）
+        internal MethodInfo GetAllLobbyItems;     // static () → List<LobbySettingItemTable>
+
+        internal Type ItemType;                   // Proto.Net.ItemDBInfo
+        internal PropertyInfo ItemId;
+        internal PropertyInfo ItemIsNew;
+        internal PropertyInfo ItemKind;           // Type，注入时固定写 25
+        internal FieldInfo ItemDict;              // Dictionary<int, ItemDBInfo>
+
         internal bool Ready;
         internal string Problem = "";
+
+        /// <summary>大厅互动场景那条链的缺失说明。为空表示齐全。</summary>
+        internal string InteractionProblem = "";
 
         /// <summary>解析进度，用于日志定位到底卡在哪一步。</summary>
         internal string Step = "";
@@ -113,6 +133,13 @@ namespace Suiren.BD2.SkinUnlock
 
                 Step = "AddPrestigeSkinDBInfo";
                 AddSkin = FindAddSkin();
+
+                // 下面两条是「锦上添花」：失败也不影响主功能，只记原因
+                Step = "皮肤弹窗";
+                ResolvePopup();
+
+                Step = "大厅互动场景";
+                ResolveInteraction();
 
                 Ready = true;
                 Problem = "";
@@ -311,6 +338,179 @@ namespace Suiren.BD2.SkinUnlock
             return null;
         }
 
+        // ---------------------------------------------------------------- 弹窗 / 互动场景
+
+        /// <summary>皮肤弹窗的 <c>LoadTexture(int, ref Action&lt;Sprite&gt;)</c>。找不到就跳过贴图兜底。</summary>
+        private void ResolvePopup()
+        {
+            PopupType = FindType("SkinExchangePopupUI", "SkinExchangePopupUI");
+            if (PopupType == null) return;
+
+            MethodInfo[] methods;
+            try
+            {
+                methods = PopupType.GetMethods(
+                    BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            }
+            catch { return; }
+
+            foreach (var m in methods)
+            {
+                if (m.Name != "LoadTexture") continue;
+
+                ParameterInfo[] ps;
+                try { ps = m.GetParameters(); } catch { continue; }
+                if (ps.Length != 2) continue;
+                if (ps[0].ParameterType != typeof(int)) continue;
+
+                // ref Action<Sprite>：参数类型是 byref，元素类型才是委托
+                var t = ps[1].ParameterType;
+                if (!t.IsByRef) continue;
+                var inner = t.GetElementType();
+                if (inner == null || !typeof(Delegate).IsAssignableFrom(inner)) continue;
+
+                LoadTexture = m;
+                return;
+            }
+        }
+
+        /// <summary>大厅互动场景：LobbySettingItemTable + 道具字典。缺哪条只记下来，不影响主功能。</summary>
+        private void ResolveInteraction()
+        {
+            var missing = new List<string>();
+
+            LobbyType = FindType("Proto.Design.common.LobbySettingItemTable", "LobbySettingItemTable");
+            if (LobbyType != null)
+            {
+                LobbyId = LobbyType.GetProperty("Id");
+                LobbySkinId = LobbyType.GetProperty("PrestigeSkinId");
+                LobbyKind = LobbyType.GetProperty("Type");
+                GetAllLobbyItems = FindNoArgListGetter(LobbyType);
+
+                if (LobbyId == null || LobbySkinId == null) missing.Add("LobbySettingItemTable.Id/PrestigeSkinId");
+                if (GetAllLobbyItems == null) missing.Add("GetAllLobbySettingItems");
+            }
+            else
+            {
+                missing.Add("LobbySettingItemTable");
+            }
+
+            ItemType = FindType("Proto.Net.ItemDBInfo", "ItemDBInfo");
+            if (ItemType != null)
+            {
+                ItemId = ItemType.GetProperty("Id");
+                ItemIsNew = ItemType.GetProperty("IsNew");
+                ItemKind = ItemType.GetProperty("Type");
+                ItemDict = FindItemDict();
+
+                if (ItemId == null) missing.Add("ItemDBInfo.Id");
+                if (ItemDict == null) missing.Add("道具字典");
+            }
+            else
+            {
+                missing.Add("ItemDBInfo");
+            }
+
+            InteractionProblem = missing.Count == 0 ? "" : string.Join("、", missing);
+        }
+
+        /// <summary>静态、无参、返回 <c>List&lt;T&gt;</c> 的方法（GetAllLobbySettingItems 就是这形态）。</summary>
+        private static MethodInfo FindNoArgListGetter(Type element)
+        {
+            foreach (var asm in SafeAssemblies())
+            {
+                var name = asm.GetName().Name ?? "";
+                if (StartsWithAny(name, SystemPrefixes)) continue;
+
+                foreach (var t in SafeTypes(asm))
+                {
+                    if (t == null) continue;
+
+                    MethodInfo[] methods;
+                    try { methods = t.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic); }
+                    catch { continue; }
+
+                    foreach (var m in methods)
+                    {
+                        try
+                        {
+                            if (m.GetParameters().Length != 0) continue;
+
+                            var rt = m.ReturnType;
+                            if (!rt.IsGenericType || rt.GetGenericTypeDefinition() != typeof(List<>)) continue;
+                            if (rt.GetGenericArguments()[0] != element) continue;
+
+                            return m;
+                        }
+                        catch { }
+                    }
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 道具字典。宿主类上要同时有 <c>List&lt;ItemDBInfo&gt;</c> 的静态属性（说明这是道具管理类），
+        /// 再取 <c>Dictionary&lt;int, ItemDBInfo&gt;</c> 静态字段；有 Type==25 条目的优先。
+        /// </summary>
+        private FieldInfo FindItemDict()
+        {
+            if (ItemType == null) return null;
+
+            var listType = typeof(List<>).MakeGenericType(ItemType);
+
+            foreach (var asm in SafeAssemblies())
+            {
+                var name = asm.GetName().Name ?? "";
+                if (StartsWithAny(name, SystemPrefixes)) continue;
+
+                foreach (var t in SafeTypes(asm))
+                {
+                    if (t == null) continue;
+
+                    try
+                    {
+                        var hasListProperty = false;
+                        foreach (var p in t.GetProperties(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                        {
+                            if (p.PropertyType == listType) { hasListProperty = true; break; }
+                        }
+                        if (!hasListProperty) continue;
+
+                        var candidates = new List<FieldInfo>();
+                        foreach (var f in t.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                        {
+                            if (!typeof(IDictionary).IsAssignableFrom(f.FieldType)) continue;
+                            if (ValueTypeOf(f.FieldType) != ItemType) continue;
+                            candidates.Add(f);
+                        }
+                        if (candidates.Count == 0) continue;
+
+                        foreach (var f in candidates)
+                        {
+                            var dict = f.GetValue(null) as IDictionary;
+                            if (dict == null || dict.Count == 0) continue;
+
+                            foreach (DictionaryEntry e in dict)
+                            {
+                                try
+                                {
+                                    if (ItemKind != null &&
+                                        Convert.ToInt32(ItemKind.GetValue(e.Value, null)) == 25)
+                                        return f;
+                                }
+                                catch { }
+                            }
+                        }
+
+                        return candidates[0];
+                    }
+                    catch { }
+                }
+            }
+            return null;
+        }
+
         // ---------------------------------------------------------------- 工具
 
         internal static IEnumerable<Assembly> SafeAssemblies()
@@ -343,6 +543,15 @@ namespace Suiren.BD2.SkinUnlock
         /// <summary>当前皮肤字典实例。游戏重新加载数据时会换成新对象，用它判断是否需要重建注入。</summary>
         internal IDictionary GetSkinDict() => SafeGet(SkinDict);
         internal IDictionary GetCostumeDict() => SafeGet(CostumeDict);
+        internal IDictionary GetItemDict() => SafeGet(ItemDict);
+
+        /// <summary>该 designId 在皮肤设计表里是否有对应行。</summary>
+        internal bool InTable(int designId)
+        {
+            if (GetTableRow == null || designId == 0) return false;
+            try { return GetTableRow.Invoke(null, new object[] { designId }) != null; }
+            catch { return false; }
+        }
 
         private static IDictionary SafeGet(FieldInfo f)
         {
@@ -355,7 +564,8 @@ namespace Suiren.BD2.SkinUnlock
         {
             var costumeHost = CostumeDict?.DeclaringType?.Name ?? "?";
             var skinHost = SkinDict?.DeclaringType?.Name ?? "?";
-            return $"服装字典 {costumeHost}.{CostumeDict?.Name} / 皮肤字典 {skinHost}.{SkinDict?.Name}";
+            var itemHost = ItemDict?.DeclaringType?.Name ?? "?";
+            return $"服装字典 {costumeHost}.{CostumeDict?.Name} / 皮肤字典 {skinHost}.{SkinDict?.Name} / 道具字典 {itemHost}.{ItemDict?.Name}";
         }
     }
 }
