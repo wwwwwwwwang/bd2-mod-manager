@@ -6,7 +6,7 @@
 
 | 依赖 | 版本 / 说明 |
 |---|---|
-| .NET SDK | 8.0（GUI / CLI / Core / 测试） |
+| .NET SDK | 8.0（GUI / Core / 测试） |
 | Python | 3.10+，仅用标准库（loader 打包、引用拆分、图标生成） |
 | Git | 任意较新版本 |
 | 操作系统 | 编译可在 Windows 或 Linux 完成；GUI 产物是 win-x64，最终验收在 Windows |
@@ -22,7 +22,7 @@ Windows 也可以直接用 Visual Studio 2022 / Rider 打开项目；仓库没�
 
 ## 二、首次构建（手动）
 
-顺序不能反：loader 包 → 引用程序集 → 插件 → 嵌入资源 → 发布 GUI / CLI。
+顺序不能反：loader 包 → 引用程序集 → 插件 → 嵌入资源 → 发布 GUI。
 
 ```bash
 # 1. 组装 loader 分发包（下载官方 release、校验 SHA256、生成 manifest）
@@ -45,11 +45,6 @@ dotnet publish src/BD2ModManager.Gui/BD2ModManager.Gui.csproj \
   -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true \
   -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true \
   -o out/gui
-
-# 6. 发布 CLI
-dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
-  -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true \
-  -p:IncludeNativeLibrariesForSelfExtract=true -o out/cli
 ```
 
 补充说明：
@@ -69,10 +64,9 @@ dotnet run --project tests/BD2ModManager.Core.Tests -c Release
 
 | 产物 | 内容 | 说明 |
 |---|---|---|
-| `out/gui/BD2ModManager.exe` | 图形界面，自包含单文件 | loader 包与 `BD2SkinUnlock.dll` 已内嵌；约 45 MB |
-| `out/cli/bd2mm.exe` | 命令行版，自包含单文件 | 无 GUI 依赖 |
-| `dist/bd2-loader.zip` | loader 分发包 | 从官方 release 现下现组，可单独取用 |
-| `src/.../BD2SkinUnlock.dll` | 自研解锁插件 | 已内嵌进 GUI；单文件版给手动安装或旧版工具用 |
+| `out/gui/BD2ModManager.exe` | 图形界面，自包含单文件 | loader 包与 `BD2SkinUnlock.dll` 已内嵌；约 45 MB，唯一发布物 |
+| `dist/bd2-loader.zip` | loader 分发包 | 构建中间产物，不单独发布 |
+| `src/.../BD2SkinUnlock.dll` | 自研解锁插件 | 构建中间产物，不单独发布 |
 
 `dist/`、`refs/`、`src/BD2ModManager.Gui/Assets/bd2-loader.zip`、`BD2SkinUnlock.dll` 都被 `.gitignore` 排除。自包含 exe 体积大且无法增量 diff，二进制只走 GitHub Release。
 
@@ -81,7 +75,7 @@ dotnet run --project tests/BD2ModManager.Core.Tests -c Release
 `scripts/package_loader.py` **不把 BepInEx 二进制存进仓库**，而是每次从官方 release 下载、按固定 SHA256 校验、再组装。这样做有三个实际好处：
 
 1. **可审计**：上游哈希写死在脚本里，任何篡改都会让构建失败，而不是悄悄进入发布物。
-2. **仓库干净**：五十多个二进制文件不进 git，体积与 diff 噪声都省掉。
+2. **仓库干净**：二十多个二进制文件不进 git，体积与 diff 噪声都省掉。
 3. **确定性构建**：zip 内时间戳、排序、权限位固定，同样的输入必得同样的 SHA256（已实测两次构建完全一致）。
 
 ### 固定上游
@@ -89,12 +83,11 @@ dotnet run --project tests/BD2ModManager.Core.Tests -c Release
 | 组件 | 版本 | 上游发行包 SHA256 |
 |---|---|---|
 | BepInEx | 5.4.23.6 | `6c57a714a892efb4e9e1fef63d608a3391f30ec984031c465404e4ee381a0755` |
-| BepInEx.ConfigurationManager | 19.1 | `dc10b1e7435dd3e0d32658b3f0f4230ddd71750164963b1095deca3bc3a98275` |
 
 脚本还会校验：
 
 - `winhttp.dll`、`doorstop_config.ini`、`.doorstop_version`、`changelog.txt` 来自官方包；
-- `BepInEx/core/*` 与 `plugins/ConfigurationManager/*` 完整；
+- `BepInEx/core/*` 完整；
 - 许可证全文与 `THIRD-PARTY-NOTICES.md` 随包分发。
 
 ### loader 包内容
@@ -106,11 +99,9 @@ doorstop_config.ini                  官方原件（4.x 语法：target_assembly
 changelog.txt                        官方原件
 VERSION.txt                          版本标记
 BepInEx/core/*                       官方 18 个文件
-BepInEx/plugins/ConfigurationManager 官方 19.1，自带 LICENSE
-BepInEx/Translation/*                CM 的多语言翻译
 LICENSE-BepInEx-LGPL-2.1.txt         LGPL-2.1 全文
 THIRD-PARTY-NOTICES.md               逐组件许可与源码链接
-manifest.json                        每个文件 path + size + sha256（当前 55 个）
+manifest.json                        每个文件 path + size + sha256（当前 25 个）
 ```
 
 `manifest.json` 是安装器的唯一依据：`files[]` 记录每个文件的路径、大小、SHA256；`loader` 记录版本与 Doorstop；`target_game` 记录主程序名、数据目录与 Unity 版本。
@@ -131,8 +122,8 @@ manifest.json                        每个文件 path + size + sha256（当前 
 6. 跑 `Core.Tests`（会读 `dist/bd2-loader.zip` 走完整安装 / 卸载）；
 7. 把 loader 包与插件拷进 GUI 的 `Assets/`；
 8. `dotnet restore` / `build`；
-9. `dotnet publish` 出 GUI 与 CLI 单文件；
-10. 上传 `bd2mm-<版本>-win-x64-dev` 调试产物（保留 7 天）。
+9. `dotnet publish` 出 GUI 单文件；
+10. 上传调试产物（保留 7 天）。
 
 ### `.github/workflows/auto-tag.yml`
 
@@ -171,11 +162,8 @@ git push origin v0.5.0
 
 | 资产 | 内容 |
 |---|---|
-| `BD2ModManager-<版本>-win-x64.exe` | 图形界面，自包含单文件，loader 包已内嵌 |
-| `bd2mm-<版本>-win-x64.exe` | 命令行版，自包含单文件 |
-| `bd2-loader-<版本>.zip` | 从官方 release 现下现组的 loader 包 |
-| `BD2SkinUnlock.dll` | 自研解锁插件单文件 |
-| `SHA256SUMS.txt` | 上述文件的校验和 |
+| `BD2ModManager-<版本>-win-x64.exe` | 唯一发布物；图形界面，自包含单文件，loader 包与解锁插件都已内嵌 |
+| `SHA256SUMS.txt` | 上述 exe 的校验和 |
 
 ## 六、常见问题
 

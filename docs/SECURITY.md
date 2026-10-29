@@ -90,7 +90,7 @@ BD2ModManager 只做两件事：
 
 - 一个组件 = `BepInEx/plugins/<名字>/` 一个独立子目录（单文件插件也建目录）；
 - 每个文件记录 SHA256，移除时逐项校验，改过的一律保留；
-- loader 自带的插件（如 `ConfigurationManager`）不归组件管，避免抢走 loader 的文件；
+- loader 自带的插件不归组件管，避免抢走 loader 的文件；
 - 关闭「启用 Mod 支持」时**先清组件、再删 loader**，目录才能真正回到干净状态。
 
 ### 9. 卸载连运行时产物一起清
@@ -134,7 +134,7 @@ ResidueOnly = Present && !CorePresent && HasTraces;
 | 位置 | 内容 | 何时产生 |
 |---|---|---|
 | 游戏目录根 | `winhttp.dll`、`doorstop_config.ini`、`.doorstop_version`、`changelog.txt`、`VERSION.txt` | 安装 loader |
-| `BepInEx/**` | 官方 loader 文件、`ConfigurationManager`、翻译、许可证 | 安装 loader |
+| `BepInEx/**` | 官方 loader 文件与许可证 | 安装 loader |
 | `BepInEx/plugins/<组件名>/**` | 使用者自己提供的插件 | 安装组件 |
 | `BepInEx/cache`、`LogOutput.log*`、`BepInEx/config/*.cfg` | loader / 插件运行时生成 | 启动游戏后 |
 | `BepInEx/SkinUnlock.probe.log` | 内置插件诊断日志 | 启动游戏后 |
@@ -144,9 +144,9 @@ ResidueOnly = Present && !CorePresent && HasTraces;
 
 ## 六、如何自行核验
 
-1. **核对发布物**：Release 附带 `SHA256SUMS.txt`，下载后逐个比对。
-2. **核对 loader 包**：解开 `bd2-loader.zip`，用 `manifest.json` 里的 `path + size + sha256` 校验每个文件。
-3. **核对上游**：`scripts/package_loader.py` 里写死了 BepInEx 5.4.23.6 与 ConfigurationManager 19.1 官方发行包的 SHA256；构建时会重新下载并校验。
+1. **核对发布物**：Release 附带 `SHA256SUMS.txt`，下载后比对 exe。
+2. **核对 loader 包**：构建时生成的 `bd2-loader.zip` 里，`manifest.json` 记录了每个文件的 `path + size + sha256`，可逐项校验。
+3. **核对上游**：`scripts/package_loader.py` 里写死了 BepInEx 5.4.23.6 官方发行包的 SHA256；构建时会重新下载并校验。
 4. **从源码构建**：步骤见 [BUILD.md](BUILD.md)。仓库不提交二进制，避免「源码与发布物对不上」。
 
 Windows 下快速计算哈希：

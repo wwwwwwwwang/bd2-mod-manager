@@ -24,8 +24,9 @@ MIT 允许使用、复制、修改、合并、发布、再许可与销售，但�
 | 组件 | 版本 | 许可 | 能否随工具分发 | 合规要点 |
 |---|---|---|---|---|
 | BepInEx | 5.4.23.6 | **LGPL-2.1** | ✅ | 附许可证全文 + 源码链接；保持 DLL 可替换 |
-| BepInEx.ConfigurationManager | 19.1 | **LGPL-3.0** | ✅ | 同上；许可随官方包分发 |
 | HarmonyX / MonoMod / Mono.Cecil | 随 BepInEx 官方包 | **MIT** | ✅ | 官方包内自带版权声明 |
+
+> 0.4.x 旧版发布包曾包含 BepInEx.ConfigurationManager 19.1（LGPL-3.0）；后续版本不再随包分发。
 
 ### BepInEx 5.4.23.6（LGPL-2.1）
 
@@ -38,16 +39,6 @@ MIT 允许使用、复制、修改、合并、发布、再许可与销售，但�
 包含文件：`winhttp.dll`（UnityDoorstop）、`doorstop_config.ini`、`.doorstop_version`、`changelog.txt`、`BepInEx/core/*`。
 
 **LGPL-2.1 合规说明**：BepInEx 以独立 DLL 形式分发，未做静态链接、未合并、未修改，满足 LGPL-2.1 第 6 条关于「可替换 / 可重新链接」的要求。使用者可以在不重新编译本工具的前提下，用自行编译的 BepInEx 替换 `BepInEx/core/` 与 `winhttp.dll`。
-
-### BepInEx.ConfigurationManager 19.1（LGPL-3.0）
-
-- 项目：<https://github.com/BepInEx/BepInEx.ConfigurationManager>
-- 源码：<https://github.com/BepInEx/BepInEx.ConfigurationManager/tree/v19.1>
-- 发行版：<https://github.com/BepInEx/BepInEx.ConfigurationManager/releases/tag/v19.1>
-- 发行包 SHA256：`dc10b1e7435dd3e0d32658b3f0f4230ddd71750164963b1095deca3bc3a98275`
-- 许可证全文：随官方包放在 `BepInEx/plugins/ConfigurationManager/LICENSE`
-
-**LGPL-3.0 合规说明**：同样以独立 DLL 分发、未修改；提供完整源码链接，并允许使用者将该 DLL 替换为自行编译的版本（LGPL-3.0 第 4 条 d 项）。
 
 ### HarmonyX / MonoMod / Mono.Cecil（MIT）
 
@@ -78,7 +69,6 @@ MIT 允许使用、复制、修改、合并、发布、再许可与销售，但�
 | [`LICENSE`](../LICENSE) | 本仓库 MIT 全文 |
 | `scripts/loader-assets/LICENSE-BepInEx-LGPL-2.1.txt` | BepInEx LGPL-2.1 全文 |
 | `scripts/loader-assets/THIRD-PARTY-NOTICES.md` | 逐组件许可、版权与源码链接 |
-| `BepInEx/plugins/ConfigurationManager/LICENSE` | ConfigurationManager LGPL-3.0 全文（随包） |
 
 发布包内同时带有 `LICENSE-BepInEx-LGPL-2.1.txt` 与 `THIRD-PARTY-NOTICES.md`，满足 LGPL 的附随义务。
 

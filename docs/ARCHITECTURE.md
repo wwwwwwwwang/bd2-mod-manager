@@ -138,7 +138,7 @@ GUI：用户选择目录；CLI：也可以直接传 .zip
   → 若目录里含 BepInEx/plugins，则以其为根；否则按单个插件处理
   → 每个插件建一个 BepInEx/plugins/<名字>/ 子目录
   → 逐文件复制并记录 SHA256
-  → 跳过 loader 自带的 ConfigurationManager
+  → 跳过 loader 自带的插件
   → 组件开关 = 文件改名（.dll ⇄ .dll.disabled）
 ```
 
@@ -187,7 +187,7 @@ GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时
 
 ### CLI 命令
 
-`BD2ModManager.Cli` 输出 `bd2mm.exe`，命令分派在 `Program.cs`，实际逻辑全部调用 Core：
+`BD2ModManager.Cli` 是开发调试工具，不随 Release 发布；命令分派在 `Program.cs`，实际逻辑全部调用 Core：
 
 | 命令 | 用途 |
 |---|---|

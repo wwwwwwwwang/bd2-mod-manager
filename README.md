@@ -13,9 +13,9 @@
 ## ✨ 核心特性
 
 - **傻瓜式管理**：一键安装 / 卸载 loader，单独开关每个插件，不需要命令行。
-- **第三方组件**：把解压后的插件目录整包装进来，可整包开关、整包移除；CLI 也接受 zip。
+- **第三方组件**：把解压后的插件目录整包装进来，可整包开关、整包移除。
 - **极致安全**：清单驱动卸载、逐文件 SHA256 校验、严格隔离用户文件；改过的文件一律保留。
-- **开箱即用**：独立 GUI 单文件，免安装、不需要 .NET、不需要管理员权限；另附 CLI。
+- **开箱即用**：独立 GUI 单文件，免安装、不需要 .NET、不需要管理员权限。
 - **内置开源插件**：自研 MIT 皮肤解锁插件，仅让已拥有服装的皮肤在本地显示（[详见文档](docs/PLUGIN_SKIN_UNLOCK.md)）。
 
 ## 🚀 快速开始
@@ -34,32 +34,22 @@
 > **卸载 / 还原**：关闭「启用 Mod 支持」即可删除本工具写入的文件、还原被覆盖的原文件，并清理 loader 运行时产物。`plugins` 里你自己放的插件会保留。
 >
 > **系统要求**：Windows 10 / 11 x64；支持官网启动器安装版。Google Play Games 版结构不同，不支持。BD2 不在 Steam。
->
-> 偏好命令行？发布包内的 `bd2mm.exe` 提供 `find` / `status` / `install` / `uninstall` / `plugins` / `components` 等命令，运行 `bd2mm --help` 查看完整用法。
 
 ## 📦 发布产物
 
-Release 里通常包含以下文件，普通用户只需要第一个：
+Release 只需要下载一个文件：
 
-| 文件 | 用途 | 说明 |
-|---|---|---|
-| `BD2ModManager-<版本>-win-x64.exe` | 图形界面 | **推荐**；loader 包与内置解锁插件已内嵌，双击即用 |
-| `bd2mm-<版本>-win-x64.exe` | 命令行版 | 给批处理、排查或自动化使用 |
-| `bd2-loader-<版本>.zip` | loader 分发包 | GUI 已内嵌；只有手动安装或单独取用 loader 时才需要 |
-| `BD2SkinUnlock.dll` | 内置皮肤解锁插件 | GUI 已内嵌；只有手动安装或旧版工具才需要 |
+| 文件 | 说明 |
+|---|---|
+| `BD2ModManager-<版本>-win-x64.exe` | 唯一需要下载的文件；loader 包与内置解锁插件都已内嵌，双击即用 |
 
-> 发布页另附 `SHA256SUMS.txt`，用于校验上述文件。不要混用旧版 GUI 与新版 loader 包；下载时以文件名中的版本号为准。
-
-### 包含关系
-
-```mermaid
-flowchart LR
-  G["BD2ModManager-版本-win-x64.exe<br/>图形界面"] -->|内嵌| Z["bd2-loader-版本.zip<br/>loader 分发包"]
-  G -->|内嵌| D["BD2SkinUnlock.dll<br/>内置解锁插件"]
-  C["bd2mm-版本-win-x64.exe<br/>命令行版"] -.->|安装时传入| Z
+```text
+BD2ModManager-<版本>-win-x64.exe
+├─ bd2-loader（内嵌）
+└─ BD2SkinUnlock.dll（内嵌）
 ```
 
-> GUI 已内嵌 loader 包与解锁插件；CLI 不内嵌，安装 loader 时需要额外提供 `bd2-loader.zip`。
+> `SHA256SUMS.txt` 仅用于校验，不需要下载。
 
 ## ❓ 常见问题
 

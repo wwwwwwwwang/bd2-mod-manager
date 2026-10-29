@@ -82,12 +82,9 @@ jobs:
           cp src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll \
              src/BD2ModManager.Gui/Assets/BD2SkinUnlock.dll
           dotnet restore src/BD2ModManager.Gui/BD2ModManager.Gui.csproj
-          dotnet restore src/BD2ModManager.Cli/BD2ModManager.Cli.csproj
 
       - name: 编译（Release）
-        run: |
-          dotnet build src/BD2ModManager.Gui/BD2ModManager.Gui.csproj -c Release --no-restore
-          dotnet build src/BD2ModManager.Cli/BD2ModManager.Cli.csproj -c Release --no-restore
+        run: dotnet build src/BD2ModManager.Gui/BD2ModManager.Gui.csproj -c Release --no-restore
 
       - name: 发布图形界面（win-x64 单文件）
         run: |
@@ -98,27 +95,15 @@ jobs:
             -p:EnableCompressionInSingleFile=true \
             -o out/gui
 
-      - name: 发布命令行（win-x64 单文件）
-        run: |
-          dotnet publish src/BD2ModManager.Cli/BD2ModManager.Cli.csproj \
-            -c Release -r win-x64 --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:EnableCompressionInSingleFile=true \
-            -o out/cli
-
       - name: 整理发布资产
         run: |
           VER="${{ steps.ver.outputs.version }}"
-          mkdir -p dist
-          mv out/gui/BD2ModManager.exe "dist/BD2ModManager-${VER}-win-x64.exe"
-          mv out/cli/bd2mm.exe "dist/bd2mm-${VER}-win-x64.exe"
-          mv dist/bd2-loader.zip "dist/bd2-loader-${VER}.zip"
-          cp src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll dist/
-          ls -lh dist/
+          mkdir -p dist/release
+          mv out/gui/BD2ModManager.exe "dist/release/BD2ModManager-${VER}-win-x64.exe"
+          ls -lh dist/release/
 
       - name: 生成校验和
-        working-directory: dist
+        working-directory: dist/release
         run: |
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
@@ -126,7 +111,7 @@ jobs:
       - name: 显示产物元数据
         run: |
           echo "=== 产物清单 ==="
-          ls -la dist/
+          ls -la dist/release/
           echo "=== 从 Directory.Build.props 继承的元数据 ==="
           grep -E "Version|Authors|Company|Copyright" Directory.Build.props | sed 's/^ *//'
 
@@ -137,9 +122,9 @@ jobs:
           TAG="${{ steps.meta.outputs.tag }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG 已存在，覆盖上传资产"
-            gh release upload "$TAG" dist/* --clobber
+            gh release upload "$TAG" dist/release/* --clobber
           else
-            gh release create "$TAG" dist/* \
+            gh release create "$TAG" dist/release/* \
               --title "BD2ModManager $TAG" \
               --generate-notes
           fi

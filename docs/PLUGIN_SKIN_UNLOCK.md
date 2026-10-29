@@ -1,6 +1,6 @@
 # 内置皮肤解锁插件
 
-`BD2SkinUnlock.dll` 是本仓库自研的 BepInEx 5 插件（MIT），随 GUI 一起分发，也可以在 Release 里单独下载。
+`BD2SkinUnlock.dll` 是本仓库自研的 BepInEx 5 插件（MIT），已内嵌在 GUI 中，不单独发布。
 
 一句话：**不改变游戏数值、不联网，仅让已拥有服装的皮肤在本地显示出来。**
 
@@ -37,9 +37,9 @@ BepInEx/plugins/BD2SkinUnlock/BD2SkinUnlock.dll
 
 4. 重启游戏。装完 GUI 会扫描 `plugins` 目录，若发现同类旧版解锁插件会提示「两个不能同时启用」。
 
-### 手动安装
+### 手动安装（一般不需要）
 
-把 `BD2SkinUnlock.dll` 放到：
+当前 Release 不单独提供 DLL。只有自行从源码构建时，才需要把生成的 `BD2SkinUnlock.dll` 放到：
 
 ```
 BepInEx/plugins/BD2SkinUnlock/BD2SkinUnlock.dll

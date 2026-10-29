@@ -37,16 +37,6 @@ BEPINEX = {
     "sha256": "6c57a714a892efb4e9e1fef63d608a3391f30ec984031c465404e4ee381a0755",
 }
 
-CONFIG_MANAGER = {
-    "name": "BepInEx.ConfigurationManager",
-    "version": "19.1",
-    "url": (
-        "https://github.com/BepInEx/BepInEx.ConfigurationManager/releases/download/v19.1/"
-        "BepInEx.ConfigurationManager_BepInEx5_v19.1.zip"
-    ),
-    "sha256": "dc10b1e7435dd3e0d32658b3f0f4230ddd71750164963b1095deca3bc3a98275",
-}
-
 # 目标游戏的识别特征，写入 manifest 供安装器核对
 TARGET_GAME = {
     "exe": "BrownDust II.exe",
@@ -131,7 +121,7 @@ def sorted_files(root: Path):
 # ---------------------------------------------------------------- 组装
 
 
-def assemble(work: Path, bep_zip: Path, cm_zip: Path) -> Path:
+def assemble(work: Path, bep_zip: Path) -> Path:
     root = work / "bd2-loader"
     if root.exists():
         shutil.rmtree(root)
@@ -139,7 +129,6 @@ def assemble(work: Path, bep_zip: Path, cm_zip: Path) -> Path:
 
     print("[2/4] 解压上游发行包")
     bep = unzip_to(bep_zip, work / "_bepinex")
-    cm = unzip_to(cm_zip, work / "_configmanager")
 
     print("[3/4] 组装目录结构")
     for name in ROOT_FILES:
@@ -151,17 +140,6 @@ def assemble(work: Path, bep_zip: Path, cm_zip: Path) -> Path:
     if not (bep / "BepInEx").is_dir():
         raise SystemExit("上游包缺少 BepInEx 目录")
     shutil.copytree(bep / "BepInEx", root / "BepInEx")
-
-    cm_plugins = cm / "BepInEx" / "plugins" / "ConfigurationManager"
-    if not cm_plugins.is_dir():
-        raise SystemExit("ConfigurationManager 包缺少 plugins/ConfigurationManager")
-    plugins_dir = root / "BepInEx" / "plugins"
-    plugins_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(cm_plugins, plugins_dir / "ConfigurationManager")
-
-    cm_translation = cm / "BepInEx" / "Translation"
-    if cm_translation.is_dir():
-        shutil.copytree(cm_translation, root / "BepInEx" / "Translation")
 
     # 许可证与第三方声明（合规必需）
     for asset in ("LICENSE-BepInEx-LGPL-2.1.txt", "THIRD-PARTY-NOTICES.md"):
@@ -262,11 +240,10 @@ def main() -> int:
 
     print("[1/4] 获取上游发行包")
     bep_zip = fetch(BEPINEX, cache_dir)
-    cm_zip = fetch(CONFIG_MANAGER, cache_dir)
 
     work = Path(tempfile.mkdtemp(prefix="bd2-loader-build-"))
     try:
-        root = assemble(work, bep_zip, cm_zip)
+        root = assemble(work, bep_zip)
         doorstop = (root / ".doorstop_version").read_text(encoding="utf-8").strip()
         manifest = write_manifest(root, doorstop)
 
