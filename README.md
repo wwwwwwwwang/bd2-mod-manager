@@ -8,8 +8,7 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D4)
-
-当前版本 **0.4.9**（源码） · [下载最新版](https://github.com/wwwwwwwwang/bd2-mod-manager/releases/latest)
+[![Release](https://img.shields.io/github/v/release/wwwwwwwwang/bd2-mod-manager?label=release&sort=semver)](https://github.com/wwwwwwwwang/bd2-mod-manager/releases/latest)
 
 ## ✨ 核心特性
 
