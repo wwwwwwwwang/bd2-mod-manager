@@ -33,13 +33,16 @@
 
     <!-- ============ 主体 ============ -->
     <!--
-      横向滚动必须关掉：留 Auto 时 ScrollViewer 会用「无限宽」去测量内容，
-      卡片里的 TextWrapping 全部失效，长句子会把卡片撑破、贴着窗口右边缘被切掉。
+      内容区外面这层 Border 专门负责裁切：ScrollViewer 自己不会保证把溢出的内容挡住，
+      滚不下的卡片会直接画到下面的日志卡片上（0.4.4 的重叠就是这么来的）。
+      另外横向滚动必须关掉：留 Auto 时 ScrollViewer 会用「无限宽」去测量内容，
+      卡片里的 TextWrapping 全部失效，长句子会把卡片撑破、贴着右边缘被切掉。
     -->
-    <ScrollViewer Grid.Row="1" Padding="18,16"
+    <Border Grid.Row="1" ClipToBounds="True" x:Name="ClipHost">
+    <ScrollViewer x:Name="MainScroll" Padding="18,16"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="12">
+      <StackPanel Spacing="10">
 
         <!-- 未找到游戏时的引导 -->
         <Border Classes="card" IsVisible="{Binding !HasGame}"
@@ -231,9 +234,10 @@
 
       </StackPanel>
     </ScrollViewer>
+    </Border>
 
     <!-- ============ 日志（固定在底部，四周留白与上面的卡片一致） ============ -->
-    <Border Grid.Row="2" Classes="card" Margin="18,0,18,10" Padding="14,12">
+    <Border Grid.Row="2" Classes="card" Margin="18,10,18,10" Padding="14,12" x:Name="LogCard">
       <StackPanel Spacing="8">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Classes="label" Text="日志" VerticalAlignment="Center" />
@@ -241,7 +245,7 @@
                   Command="{Binding ClearLogCommand}" VerticalAlignment="Center" />
         </Grid>
 
-        <ListBox x:Name="LogList" Height="150" ItemsSource="{Binding LogLines}"
+        <ListBox x:Name="LogList" Height="96" ItemsSource="{Binding LogLines}"
                  Background="#FAFBFC" BorderBrush="#E6E8EB" BorderThickness="1"
                  CornerRadius="8" Padding="8,6" Focusable="False"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -299,7 +303,7 @@
         <Border.BoxShadow>
           <BoxShadows>0 8 28 0 #33000000</BoxShadows>
         </Border.BoxShadow>
-        <StackPanel Spacing="12">
+        <StackPanel Spacing="10">
           <TextBlock Text="{Binding ConfirmTitle}" FontSize="14.5" FontWeight="SemiBold"
                      TextWrapping="Wrap" />
           <TextBlock Text="{Binding ConfirmMessage}" FontSize="12"

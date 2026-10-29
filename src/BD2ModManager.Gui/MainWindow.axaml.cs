@@ -35,5 +35,4 @@ public partial class MainWindow : Window
         var sv = LogList.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
         sv?.ScrollToEnd();
     }
-
 }
