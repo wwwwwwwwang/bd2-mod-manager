@@ -32,7 +32,13 @@
     </Border>
 
     <!-- ============ 主体 ============ -->
-    <ScrollViewer Grid.Row="1" Padding="18,16" VerticalScrollBarVisibility="Auto">
+    <!--
+      横向滚动必须关掉：留 Auto 时 ScrollViewer 会用「无限宽」去测量内容，
+      卡片里的 TextWrapping 全部失效，长句子会把卡片撑破、贴着窗口右边缘被切掉。
+    -->
+    <ScrollViewer Grid.Row="1" Padding="18,16"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="12">
 
         <!-- 未找到游戏时的引导 -->
@@ -125,41 +131,65 @@
 
         <!-- 第三方组件 -->
         <Border Classes="card">
-          <StackPanel Spacing="8">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-              <TextBlock Classes="label" Text="第三方组件" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ComponentCountText}"
-                         VerticalAlignment="Center" Margin="0,0,8,0" />
-              <Button Grid.Column="2" Classes="ghost" Content="安装内置插件"
-                      Command="{Binding InstallBuiltInCommand}" Margin="0,0,6,0"
-                      IsEnabled="{Binding CanManageComponents}" />
-              <Button Grid.Column="3" Classes="ghost" Content="安装组件…"
-                      Command="{Binding InstallComponentCommand}"
-                      IsEnabled="{Binding CanManageComponents}" />
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+                          VerticalAlignment="Center">
+                <TextBlock Classes="label" Text="第三方组件" VerticalAlignment="Center" />
+                <Border Background="#F1F3F5" CornerRadius="9" Padding="7,1"
+                        VerticalAlignment="Center" IsVisible="{Binding !HasNoComponents}">
+                  <TextBlock Classes="muted" Text="{Binding ComponentCountText}" />
+                </Border>
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                          VerticalAlignment="Center">
+                <Button Classes="ghost" Content="安装内置插件"
+                        Command="{Binding InstallBuiltInCommand}"
+                        IsEnabled="{Binding CanManageComponents}" />
+                <Button Classes="ghost" Content="安装组件…"
+                        Command="{Binding InstallComponentCommand}"
+                        IsEnabled="{Binding CanManageComponents}" />
+              </StackPanel>
             </Grid>
 
             <ItemsControl ItemsSource="{Binding Components}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ComponentItem">
-                  <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,5">
-                    <StackPanel Grid.Column="0" Spacing="1">
-                      <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding Meta}" Classes="muted" />
-                    </StackPanel>
-                    <Button Grid.Column="1" Classes="link" Content="移除"
-                            Command="{Binding RemoveCommand}" Margin="0,0,10,0"
-                            VerticalAlignment="Center" />
-                    <ToggleButton Grid.Column="2" Classes="switch small"
-                                  VerticalAlignment="Center"
-                                  IsChecked="{Binding Enabled, Mode=TwoWay}" />
-                  </Grid>
+                  <Border Background="#FAFBFC" BorderBrush="#EDEFF2" BorderThickness="1"
+                          CornerRadius="8" Padding="10,8" Margin="0,0,0,2">
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                      <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="12.5"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Meta}" Classes="muted"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Classes="link" Content="移除"
+                              Command="{Binding RemoveCommand}" Margin="0,0,12,0"
+                              VerticalAlignment="Center" />
+                      <ToggleButton Grid.Column="2" Classes="switch small"
+                                    VerticalAlignment="Center"
+                                    IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                    </Grid>
+                  </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <TextBlock Classes="muted" TextWrapping="Wrap"
-                       IsVisible="{Binding HasNoComponents}"
-                       Text="这里管理由本工具安装的第三方插件（如皮肤解锁）。选解压后的插件目录即可整包装卸；工具只删自己写过的文件，改过的一律保留。" />
+            <!-- 空态：用占位块说明这里能做什么，不再只摆一行说明文字 -->
+            <Border IsVisible="{Binding HasNoComponents}" CornerRadius="8"
+                    Background="#FAFBFC" BorderBrush="#E6E8EB" BorderThickness="1"
+                    Padding="12,11">
+              <StackPanel Spacing="4">
+                <TextBlock Text="还没有第三方组件" FontSize="12.5"
+                           Foreground="{StaticResource TextSecondary}" />
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="点「安装内置插件」装上皮肤解锁，或选中解压后的插件目录整包装卸。" />
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="工具只删自己写过的文件，改过的一律保留。" />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </Border>
 
@@ -175,15 +205,20 @@
             <ItemsControl ItemsSource="{Binding Plugins}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PluginItem">
-                  <Grid ColumnDefinitions="*,Auto" Margin="0,5">
-                    <StackPanel Grid.Column="0" Spacing="1">
-                      <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding Meta}" Classes="muted" />
-                    </StackPanel>
-                    <ToggleButton Grid.Column="1" Classes="switch small"
-                                  VerticalAlignment="Center"
-                                  IsChecked="{Binding Enabled, Mode=TwoWay}" />
-                  </Grid>
+                  <Border Background="#FAFBFC" BorderBrush="#EDEFF2" BorderThickness="1"
+                          CornerRadius="8" Padding="10,8" Margin="0,0,0,2">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="12.5"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Meta}" Classes="muted"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <ToggleButton Grid.Column="1" Classes="switch small"
+                                    VerticalAlignment="Center"
+                                    IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                    </Grid>
+                  </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -197,47 +232,47 @@
       </StackPanel>
     </ScrollViewer>
 
-    <!-- ============ 日志（固定在底部，不跟着内容滚） ============ -->
-    <Border Grid.Row="2" Background="{StaticResource CardBg}"
-            BorderBrush="{StaticResource CardBorder}" BorderThickness="0,1,0,0"
-            Padding="18,10">
-      <StackPanel Spacing="6">
+    <!-- ============ 日志（固定在底部，四周留白与上面的卡片一致） ============ -->
+    <Border Grid.Row="2" Classes="card" Margin="18,0,18,10" Padding="14,12">
+      <StackPanel Spacing="8">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Classes="label" Text="日志" VerticalAlignment="Center" />
-          <Button Grid.Column="1" Classes="link" Content="清空" Command="{Binding ClearLogCommand}" />
+          <Button Grid.Column="1" Classes="link" Content="清空"
+                  Command="{Binding ClearLogCommand}" VerticalAlignment="Center" />
         </Grid>
-  <ListBox x:Name="LogList" Height="158" ItemsSource="{Binding LogLines}"
-                     Background="#FAFBFC" BorderBrush="#E6E8EB" BorderThickness="1"
-                     CornerRadius="8" Padding="8,6" Focusable="False"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     FontFamily="Cascadia Mono, Consolas, Noto Sans Mono, monospace"
-                     FontSize="11.5">
-              <ListBox.Styles>
-                <Style Selector="ListBoxItem">
-                  <Setter Property="Padding" Value="2,1" />
-                  <Setter Property="MinHeight" Value="0" />
-                  <Setter Property="Background" Value="Transparent" />
-                  <Setter Property="Focusable" Value="False" />
-                </Style>
-                <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
-                  <Setter Property="Background" Value="Transparent" />
-                </Style>
-                <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                  <Setter Property="Background" Value="#EEF1F5" />
-                </Style>
-              </ListBox.Styles>
-              <ListBox.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <!-- 不做虚拟化：虚拟化下内容高度是估算的，ScrollToEnd 滚不到真正底部 -->
-                  <StackPanel />
-                </ItemsPanelTemplate>
-              </ListBox.ItemsPanel>
-              <ListBox.ItemTemplate>
-                <DataTemplate>
-                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
+
+        <ListBox x:Name="LogList" Height="150" ItemsSource="{Binding LogLines}"
+                 Background="#FAFBFC" BorderBrush="#E6E8EB" BorderThickness="1"
+                 CornerRadius="8" Padding="8,6" Focusable="False"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 FontFamily="Cascadia Mono, Consolas, Noto Sans Mono, monospace"
+                 FontSize="11.5">
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem">
+              <Setter Property="Padding" Value="2,1" />
+              <Setter Property="MinHeight" Value="0" />
+              <Setter Property="Background" Value="Transparent" />
+              <Setter Property="Focusable" Value="False" />
+            </Style>
+            <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+              <Setter Property="Background" Value="Transparent" />
+            </Style>
+            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+              <Setter Property="Background" Value="#EEF1F5" />
+            </Style>
+          </ListBox.Styles>
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <!-- 不做虚拟化：虚拟化下内容高度是估算的，ScrollToEnd 滚不到真正底部 -->
+              <StackPanel />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
       </StackPanel>
     </Border>
 
