@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -37,6 +38,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _pathSheetOpen;
     private bool _logsSheetOpen;
     private bool _unreadLogs;
+    private bool _updateAvailable;
+    private bool _checkingUpdate;
+    private string _updateStatus = "尚未检查更新";
+    private string _releaseUrl = "";
 
     private string _busyText = "";
     private string _statusText = "尚未检测";
@@ -64,6 +69,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OpenPathSheetCommand = new RelayCommand(OpenPathSheet);
         OpenLogsSheetCommand = new RelayCommand(OpenLogsSheet);
         CloseSheetCommand = new RelayCommand(CloseSheet);
+        CheckUpdateCommand = new RelayCommand(() => _ = CheckForUpdatesAsync(true));
+        OpenUpdateCommand = new RelayCommand(OpenReleasePage);
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
         ConfirmCancelCommand = new RelayCommand(() => _confirm?.TrySetResult(false));
 
@@ -94,6 +101,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand OpenPathSheetCommand { get; }
     public ICommand OpenLogsSheetCommand { get; }
     public ICommand CloseSheetCommand { get; }
+    public ICommand CheckUpdateCommand { get; }
+    public ICommand OpenUpdateCommand { get; }
     public ICommand ConfirmYesCommand { get; }
     public ICommand ConfirmCancelCommand { get; }
 
@@ -166,6 +175,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         get => _unreadLogs;
         private set => Set(ref _unreadLogs, value);
+    }
+
+    public bool UpdateAvailable
+    {
+        get => _updateAvailable;
+        private set => Set(ref _updateAvailable, value);
+    }
+
+    public bool IsCheckingUpdate
+    {
+        get => _checkingUpdate;
+        private set => Set(ref _checkingUpdate, value);
+    }
+
+    public string UpdateStatus
+    {
+        get => _updateStatus;
+        private set => Set(ref _updateStatus, value);
     }
 
     public string LogCountText => LogLines.Count.ToString();
@@ -244,6 +271,67 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LogsSheetOpen = false;
     }
 
+    private async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (IsCheckingUpdate) return;
+
+        IsCheckingUpdate = true;
+        if (manual) UpdateStatus = "正在检查更新…";
+
+        try
+        {
+            var result = await UpdateChecker.CheckAsync(Version, force: manual);
+            if (!result.Success)
+            {
+                if (manual)
+                {
+                    UpdateStatus = "检查失败，请稍后重试";
+                    Log($"检查更新失败：{result.Error}");
+                }
+                return;
+            }
+
+            UpdateAvailable = result.Available;
+            _releaseUrl = result.ReleaseUrl;
+            UpdateStatus = result.Available
+                ? $"发现新版本 {result.LatestVersion}"
+                : "已是最新版本";
+
+            if (result.Available)
+                Log($"发现新版本 {result.LatestVersion}：{result.ReleaseUrl}");
+            else if (manual)
+                Log("当前已是最新版本。");
+        }
+        catch (Exception ex)
+        {
+            if (manual)
+            {
+                UpdateStatus = "检查失败，请稍后重试";
+                Log($"检查更新失败：{ex.Message}");
+            }
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
+    private void OpenReleasePage()
+    {
+        var url = string.IsNullOrWhiteSpace(_releaseUrl)
+            ? "https://github.com/wwwwwwwwang/bd2-mod-manager/releases/latest"
+            : _releaseUrl;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log($"打开下载页失败：{ex.Message}");
+        }
+    }
+
     public string StatusText { get => _statusText; private set => Set(ref _statusText, value); }
     public string StatusHint { get => _statusHint; private set => Set(ref _statusHint, value); }
     public string ToggleHint { get => _toggleHint; private set => Set(ref _toggleHint, value); }
@@ -283,6 +371,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         Log($"BD2ModManager {Version} 启动");
         Log($"程序目录：{AppContext.BaseDirectory}");
+        _ = CheckForUpdatesAsync(false);
         await RescanAsync(firstRun: true);
     }
 

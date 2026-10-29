@@ -43,10 +43,16 @@
               <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="Bold"
                          Foreground="{StaticResource TextPrimary}" />
               <Border Background="#EFF6FF" BorderBrush="#DBEAFE" BorderThickness="1"
-                      CornerRadius="8" Padding="6,1" VerticalAlignment="Center">
-                <TextBlock Text="{Binding Version}" FontSize="9.5"
-                           FontFamily="Cascadia Mono, Consolas, monospace"
-                           Foreground="{StaticResource AccentBrush}" />
+                      CornerRadius="8" Padding="6,1" VerticalAlignment="Center"
+                      ToolTip.Tip="{Binding UpdateStatus}">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <TextBlock Text="{Binding Version}" FontSize="9.5"
+                             FontFamily="Cascadia Mono, Consolas, monospace"
+                             Foreground="{StaticResource AccentBrush}" />
+                  <Ellipse Width="5" Height="5" Fill="{StaticResource AccentBrush}"
+                           VerticalAlignment="Center"
+                           IsVisible="{Binding UpdateAvailable}" />
+                </StackPanel>
               </Border>
             </StackPanel>
             <TextBlock Text="{Binding Subtitle}" FontSize="10"
@@ -261,6 +267,27 @@
               <TextBlock Text="{Binding GameMeta}" FontSize="9.5"
                          Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" />
             </StackPanel>
+          </Border>
+
+          <Border Background="#F8FBFF" BorderBrush="#DBEAFE" BorderThickness="1"
+                  CornerRadius="10" Padding="10,8">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <StackPanel Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="更新检查" FontSize="10.5" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding UpdateStatus}" FontSize="9.5"
+                           Foreground="{StaticResource TextSecondary}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7"
+                          VerticalAlignment="Center">
+                <Button Classes="link" Content="检查"
+                        Command="{Binding CheckUpdateCommand}"
+                        IsEnabled="{Binding !IsCheckingUpdate}" />
+                <Button Classes="link" Content="下载"
+                        Command="{Binding OpenUpdateCommand}"
+                        IsVisible="{Binding UpdateAvailable}" />
+              </StackPanel>
+            </Grid>
           </Border>
 
           <Button Classes="ghost" Content="清理残留" HorizontalAlignment="Left"
