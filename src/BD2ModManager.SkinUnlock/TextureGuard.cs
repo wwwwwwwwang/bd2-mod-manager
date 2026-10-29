@@ -19,7 +19,7 @@ namespace Suiren.BD2.SkinUnlock
     /// </summary>
     internal static class TextureGuard
     {
-        /// <summary>多久没回调就补 null，与参考实现一致。</summary>
+        /// <summary>多久没回调就补 null。再久界面就一直转圈了。</summary>
         internal const double TimeoutSeconds = 0.5;
 
         private sealed class Pending

@@ -11,7 +11,7 @@ namespace Suiren.BD2.SkinUnlock
     /// 大厅道具，本质是「某个互动场景 = 某套皮肤」。这些道具要存在于 <c>ItemDBInfo</c> 字典里
     /// 才会出现在大厅，未购入时自然也没有。
     ///
-    /// 这里按设计表把这些道具补进字典（Type 固定写 25，与参考实现一致），并记账以便退出时还原。
+    /// 这里按设计表把这些道具补进字典（Type 固定写 25，与游戏自身的道具类型一致），并记账以便退出时还原。
     /// </summary>
     internal static class InteractionScenes
     {

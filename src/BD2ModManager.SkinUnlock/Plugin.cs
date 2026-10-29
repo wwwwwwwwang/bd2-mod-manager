@@ -28,10 +28,6 @@ namespace Suiren.BD2.SkinUnlock
         public const string PluginGuid = "com.suiren.bd2.skinunlock";
         public const string Version = "1.1.1";
 
-        /// <summary>同类插件。两个一起装会互相覆盖同一批补丁，只保留一个。</summary>
-        private const string ConflictGuid = "com.example.legacy";
-        private const string LegacyConfigName = "第三方闭源插件.cfg";
-
         private static ManualLogSource _log;
 
         private readonly GameRefs _refs = new GameRefs();
@@ -43,7 +39,6 @@ namespace Suiren.BD2.SkinUnlock
 
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<float> _reapplyInterval;
-        private ConfigEntry<bool> _migrateLegacy;
         private ConfigEntry<bool> _verbose;
 
         private Harmony _harmony;
@@ -54,7 +49,6 @@ namespace Suiren.BD2.SkinUnlock
         private bool _stopped;
         private bool _shutdown;
         private int _attempts;
-        private int _conflictChecks = 20;
         private int _lastInjected;
 
         private int _updateCount;
@@ -90,17 +84,6 @@ namespace Suiren.BD2.SkinUnlock
 
             _selectionPath = Path.Combine(Paths.ConfigPath, PluginGuid + ".selection.txt");
             LoadSelection();
-
-            if (_migrateLegacy.Value) MigrateLegacySelection();
-
-            if (FindConflict(out var other))
-            {
-                LogWarn($"检测到同类插件「{other}」同时在跑（{ConflictGuid}）。两套补丁会改同一批数据，" +
-                     "本插件已自动停用，请只保留一个。");
-                Diag.Note($"发现同类插件 {other}，停用");
-                _stopped = true;
-                return;
-            }
 
             _harmony = new Harmony(PluginGuid);
 
@@ -228,19 +211,6 @@ namespace Suiren.BD2.SkinUnlock
             if (_heartbeat.Elapsed.TotalMilliseconds < 500) return;
             _heartbeat.Restart();
 
-            // 插件加载顺序不固定，同类插件可能比我们晚一步，启动后多看几次
-            if (_conflictChecks > 0)
-            {
-                _conflictChecks--;
-                if (FindConflict(out var other))
-                {
-                    LogWarn($"检测到同类插件「{other}」，本插件停用并撤销自己的补丁。");
-                    Shutdown();
-                    _stopped = true;
-                    return;
-                }
-            }
-
             if (!_ready)
             {
                 TryInitialize();
@@ -269,7 +239,7 @@ namespace Suiren.BD2.SkinUnlock
             // 这里千万不能 Shutdown：BD2 会销毁 manager 对象，但游戏还在正常运行。
             // 一旦在此时撤销补丁，插件就自己把自己废了（实测症状就是「补丁已挂上」
             // 之后紧跟「补丁已撤销」，然后游戏里毫无效果）。
-            // 参考实现同样没有任何 OnDestroy / Unpatch 逻辑，补丁一直留到进程结束。
+            // 补丁留到进程结束即可，退出时由 OnApplicationQuit 统一收尾。
         }
 
         // ---------------------------------------------------------------- 初始化
@@ -352,7 +322,7 @@ namespace Suiren.BD2.SkinUnlock
                     _lastInjected = injected;
                 }
 
-                // 清掉 designId=0 的默认皮肤与设计表里没有的脏条目（参考实现同样每轮清一次）
+                // 清掉 designId=0 的默认皮肤与设计表里没有的脏条目（每轮巡检清一次）
                 var cleaned = _state.CleanupInvalid(_refs);
                 if (cleaned > 0 && _verbose.Value)
                     LogInfo($"清理脏皮肤条目 {cleaned} 条（退出时会放回）");
@@ -418,9 +388,6 @@ namespace Suiren.BD2.SkinUnlock
                     "把已选皮肤写回服装的间隔（秒）。服务器同步会覆盖本地选择，靠这个恢复。",
                     new AcceptableValueRange<float>(0.5f, 60f)));
 
-            _migrateLegacy = Config.Bind("General", "MigrateLegacyConfig", true,
-                "首次运行时，把旧插件 第三方闭源插件.cfg 里的皮肤选择导入过来。");
-
             _verbose = Config.Bind("Diagnostics", "Verbose", false,
                 "输出每一轮巡检的细节，排查问题时打开。");
         }
@@ -483,70 +450,7 @@ namespace Suiren.BD2.SkinUnlock
             }
         }
 
-        /// <summary>从旧插件迁移选择，迁完把文件改名，避免每次启动重复导入。</summary>
-        private void MigrateLegacySelection()
-        {
-            var legacy = Path.Combine(Paths.ConfigPath, LegacyConfigName);
-            if (!File.Exists(legacy)) return;
-
-            try
-            {
-                var imported = 0;
-                var map = new Dictionary<int, int>();
-
-                foreach (var raw in File.ReadAllLines(legacy))
-                {
-                    var line = raw.Trim();
-                    if (line.Length == 0 || line[0] == '#') continue;
-
-                    var cut = line.IndexOf('=');
-                    if (cut <= 0) continue;
-
-                    if (int.TryParse(line.Substring(0, cut), out var costumeId) &&
-                        int.TryParse(line.Substring(cut + 1), out var designId) &&
-                        costumeId != 0 && designId != 0)
-                    {
-                        map[costumeId] = designId;
-                        imported++;
-                    }
-                }
-
-                if (imported > 0)
-                {
-                    var merged = new Dictionary<int, int>();
-                    foreach (var kv in _state.Selection) merged[kv.Key] = kv.Value;
-                    foreach (var kv in map) merged[kv.Key] = kv.Value;   // 旧插件的记录优先
-
-                    _state.ReplaceSelection(merged);
-                    SaveSelection();
-                    LogInfo($"已从旧插件导入 {imported} 条皮肤选择。");
-                }
-
-                File.Move(legacy, legacy + ".imported");
-            }
-            catch (Exception e)
-            {
-                LogWarn("迁移旧配置失败（不影响使用）：" + e.Message);
-            }
-        }
-
         // ---------------------------------------------------------------- 杂项
-
-        private static bool FindConflict(out string name)
-        {
-            name = null;
-            try
-            {
-                foreach (var kv in BepInEx.Bootstrap.Chainloader.PluginInfos)
-                {
-                    if (kv.Key != ConflictGuid) continue;
-                    name = kv.Value?.Metadata?.Name ?? kv.Key;
-                    return true;
-                }
-            }
-            catch { }
-            return false;
-        }
 
         internal static void LogInfo(string message)
         {

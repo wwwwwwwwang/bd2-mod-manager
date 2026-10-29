@@ -364,7 +364,7 @@ namespace Suiren.BD2.SkinUnlock
                 if (ps[0].ParameterType != typeof(int)) continue;
 
                 // 回调参数的形态两种都要认：ref Action<Sprite>（byref）和值传递的
-                // Action<Sprite>。参考实现实测到的是后者，只认 byref 会永远匹配不上。
+                // Action<Sprite>（值传递）。实测游戏用的是后者，只认 byref 会永远匹配不上。
                 var t = ps[1].ParameterType;
                 if (t.IsByRef) t = t.GetElementType();
                 if (t == null || !typeof(Delegate).IsAssignableFrom(t)) continue;

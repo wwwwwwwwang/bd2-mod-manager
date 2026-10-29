@@ -342,7 +342,7 @@ internal static class Program
             "两条脏条目都被移走");
 
         cleaner.Rollback(refs);
-        Check(Database.SkinDict.ContainsKey(9999), "退出时把移走的条目放回去（参考实现不会）");
+        Check(Database.SkinDict.ContainsKey(9999), "退出时把移走的条目放回去（不留残渣）");
 
         // ------------------------------------------------------------ 结果
 

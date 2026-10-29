@@ -17,7 +17,7 @@ public sealed record ComponentInfo(
 public sealed class ComponentRecord
 {
     public string Name { get; set; } = "";
-    /// <summary>相对游戏目录，例如 BepInEx/plugins/第三方闭源插件。</summary>
+    /// <summary>相对游戏目录，例如 BepInEx/plugins/某插件目录或单个 dll。</summary>
     public string RelativeDir { get; set; } = "";
     public string Source { get; set; } = "";
     public DateTimeOffset InstalledAt { get; set; } = DateTimeOffset.Now;

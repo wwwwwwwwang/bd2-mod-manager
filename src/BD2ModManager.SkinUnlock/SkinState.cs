@@ -124,7 +124,7 @@ namespace Suiren.BD2.SkinUnlock
                     }
                 }
 
-                // 清理阶段移走的原始条目放回去（参考实现不做这件事，我们多做一步更安全）
+                // 清理阶段移走的原始条目放回去，退出后内存更干净
                 foreach (var kv in _removed)
                 {
                     try { if (!dict.Contains(kv.Key)) dict[kv.Key] = kv.Value; }
@@ -140,7 +140,7 @@ namespace Suiren.BD2.SkinUnlock
         /// <summary>
         /// 剔除皮肤字典里的脏条目：designId 为 0 的默认项、以及设计表里查不到的项。
         ///
-        /// 参考实现每 3 秒做一次全表清理。这里行为一致，但会先把移走的原始条目记下来，
+        /// 每轮巡检做一次全表清理，但会先把移走的原始条目记下来，
         /// 退出时放回去——否则等于把游戏自己的数据删了还不还。
         /// </summary>
         internal int CleanupInvalid(GameRefs r)
@@ -191,7 +191,7 @@ namespace Suiren.BD2.SkinUnlock
 
         /// <summary>
         /// 把某件服装在设计表里的全部皮肤补进 <paramref name="target"/>，缺的条目顺手写进字典。
-        /// 供 GetConnectedPrestigeSkinDBInfos 的 Postfix 逐次调用（参考实现同名逻辑）。
+        /// 供 GetConnectedPrestigeSkinDBInfos 的 Postfix 逐次调用，按件补全，不整表重算。
         /// </summary>
         internal int AppendFor(GameRefs r, object costume, IList target, SkinCatalog cat)
         {
@@ -241,7 +241,7 @@ namespace Suiren.BD2.SkinUnlock
                     entry = CreateEntry(r, costumeId, designId, currentDesign == designId);
                     if (entry == null) continue;
 
-                    // 与参考实现一致：补进列表的同时也写进字典，别的界面读字典时同样能看到
+                    // 补进列表的同时也写进字典，别的界面读字典时同样能看到
                     if (dict != null)
                     {
                         try

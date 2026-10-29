@@ -261,7 +261,7 @@ namespace Suiren.BD2.SkinUnlock
 
         /// <summary>
         /// 游戏往皮肤字典写条目时，designId 为 0（默认皮肤）或设计表里查不到的，直接不写。
-        /// 与参考实现一致——这类条目会让弹窗里多出空皮肤。
+        /// 这类条目会让弹窗里多出空皮肤，一律拦下。
         /// </summary>
         private static bool AddSkin_Prefix(object __0)
         {

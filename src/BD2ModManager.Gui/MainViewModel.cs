@@ -630,8 +630,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var game = _game;
             var r = await Task.Run(() => _components.Install(game, staging));
             WriteResult(r);
-
-            if (r.Success) WarnAboutCompetingPlugins(game);
         }
         catch (Exception ex)
         {
@@ -643,29 +641,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             BusyText = "";
             try { Directory.Delete(staging, true); } catch { }
             RefreshStatus();
-        }
-    }
-
-    /// <summary>同类插件同时启用会互相覆盖补丁，装完立刻提醒。</summary>
-    private void WarnAboutCompetingPlugins(GameInstall game)
-    {
-        var dir = Path.Combine(game.Root, "BepInEx", "plugins");
-        if (!Directory.Exists(dir)) return;
-
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
-            {
-                var name = Path.GetFileName(file);
-                if (!name.StartsWith("第三方闭源插件", StringComparison.OrdinalIgnoreCase)) continue;
-
-                Log($"注意：还留着同类插件 {file}");
-                Log("      两个插件不能同时启用，请把它移除或关掉，否则其中一个会自动停用。");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"检查同类插件时出错：{ex.Message}");
         }
     }
 
