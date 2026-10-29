@@ -51,6 +51,41 @@ Release 里通常包含以下文件，普通用户只需要第一个：
 
 > 不要混用旧版 GUI 与新版 loader 包；下载时以文件名中的版本号为准。
 
+### 包含关系
+
+```mermaid
+flowchart TB
+  R["Release 资产"]
+
+  G["BD2ModManager-版本-win-x64.exe<br/>GUI（推荐）"]
+  C["bd2mm-版本-win-x64.exe<br/>命令行版"]
+  Z["bd2-loader-版本.zip<br/>loader 分发包"]
+  D["BD2SkinUnlock.dll<br/>内置解锁插件"]
+  S["SHA256SUMS.txt<br/>校验和"]
+
+  R --> G
+  R --> C
+  R --> Z
+  R --> D
+  R --> S
+
+  G -->|内嵌| Z
+  G -->|内嵌| D
+
+  Z --> Z1["winhttp.dll / Doorstop"]
+  Z --> Z2["BepInEx/core"]
+  Z --> Z3["ConfigurationManager"]
+  Z --> Z4["manifest.json / 许可证"]
+
+  C -.->|安装时传入| Z
+  S -.->|校验| G
+  S -.->|校验| C
+  S -.->|校验| Z
+  S -.->|校验| D
+```
+
+> GUI 已内嵌 loader 包与解锁插件；CLI 不内嵌，安装 loader 时需要额外提供 `bd2-loader.zip`。
+
 ## ❓ 常见问题
 
 **会被杀毒软件报毒吗？**
