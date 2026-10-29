@@ -47,41 +47,16 @@ Release 里通常包含以下文件，普通用户只需要第一个：
 | `bd2mm-<版本>-win-x64.exe` | 命令行版 | 给批处理、排查或自动化使用 |
 | `bd2-loader-<版本>.zip` | loader 分发包 | GUI 已内嵌；只有手动安装或单独取用 loader 时才需要 |
 | `BD2SkinUnlock.dll` | 内置皮肤解锁插件 | GUI 已内嵌；只有手动安装或旧版工具才需要 |
-| `SHA256SUMS.txt` | 校验和 | 下载后核对文件完整性 |
 
-> 不要混用旧版 GUI 与新版 loader 包；下载时以文件名中的版本号为准。
+> 发布页另附 `SHA256SUMS.txt`，用于校验上述文件。不要混用旧版 GUI 与新版 loader 包；下载时以文件名中的版本号为准。
 
 ### 包含关系
 
 ```mermaid
-flowchart TB
-  R["Release 资产"]
-
-  G["BD2ModManager-版本-win-x64.exe<br/>GUI（推荐）"]
-  C["bd2mm-版本-win-x64.exe<br/>命令行版"]
-  Z["bd2-loader-版本.zip<br/>loader 分发包"]
-  D["BD2SkinUnlock.dll<br/>内置解锁插件"]
-  S["SHA256SUMS.txt<br/>校验和"]
-
-  R --> G
-  R --> C
-  R --> Z
-  R --> D
-  R --> S
-
-  G -->|内嵌| Z
-  G -->|内嵌| D
-
-  Z --> Z1["winhttp.dll / Doorstop"]
-  Z --> Z2["BepInEx/core"]
-  Z --> Z3["ConfigurationManager"]
-  Z --> Z4["manifest.json / 许可证"]
-
-  C -.->|安装时传入| Z
-  S -.->|校验| G
-  S -.->|校验| C
-  S -.->|校验| Z
-  S -.->|校验| D
+flowchart LR
+  G["BD2ModManager-版本-win-x64.exe<br/>图形界面"] -->|内嵌| Z["bd2-loader-版本.zip<br/>loader 分发包"]
+  G -->|内嵌| D["BD2SkinUnlock.dll<br/>内置解锁插件"]
+  C["bd2mm-版本-win-x64.exe<br/>命令行版"] -.->|安装时传入| Z
 ```
 
 > GUI 已内嵌 loader 包与解锁插件；CLI 不内嵌，安装 loader 时需要额外提供 `bd2-loader.zip`。
