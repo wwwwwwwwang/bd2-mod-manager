@@ -38,6 +38,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _pathSheetOpen;
     private bool _logsSheetOpen;
     private bool _unreadLogs;
+    private bool _loaderPresent;
+    private bool _usingExternalLoader;
     private bool _updateAvailable;
     private bool _checkingUpdate;
     private bool _toastVisible;
@@ -180,6 +182,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set => Set(ref _unreadLogs, value);
     }
 
+    public bool LoaderPresent
+    {
+        get => _loaderPresent;
+        private set => Set(ref _loaderPresent, value);
+    }
+
+    public bool UsingExternalLoader
+    {
+        get => _usingExternalLoader;
+        private set => Set(ref _usingExternalLoader, value);
+    }
+
     public bool UpdateAvailable
     {
         get => _updateAvailable;
@@ -214,13 +228,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string HeroTitle => IsBusy
         ? "正在同步组件"
-        : ToggleOn ? "已启用 Mod 支持" : "未启用 · 原生纯净状态";
+        : ToggleOn
+            ? "已启用 Mod 支持"
+            : UsingExternalLoader
+                ? "已检测到 BepInEx"
+                : LoaderPresent ? "已安装 loader · 未启用插件" : "未启用 · 原生纯净状态";
 
     public string HeroHint => IsBusy
         ? (string.IsNullOrWhiteSpace(BusyText) ? "正在准备…" : BusyText)
         : ToggleOn
             ? ""
-            : "点击中央开关，一键安装解锁插件与 Loader";
+            : LoaderPresent
+                ? UsingExternalLoader
+                    ? "点击开关只安装内置解锁插件，不会覆盖现有 BepInEx"
+                    : "点击开关只安装内置解锁插件，不会重装 loader"
+                : "点击中央开关，一键安装解锁插件与 Loader";
 
     public bool ShowHeroHint => IsBusy || !ToggleOn;
 
@@ -263,11 +285,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private static bool IsUnlockPlugin(string name) =>
+        name.StartsWith("BD2SkinUnlock", StringComparison.OrdinalIgnoreCase);
+
     private void NotifyHeroState()
     {
         OnPropertyChanged(nameof(HeroTitle));
         OnPropertyChanged(nameof(HeroHint));
         OnPropertyChanged(nameof(ShowHeroHint));
+        OnPropertyChanged(nameof(LoaderPresent));
+        OnPropertyChanged(nameof(UsingExternalLoader));
         OnPropertyChanged(nameof(PowerLabel));
         OnPropertyChanged(nameof(PowerBackground));
         OnPropertyChanged(nameof(PowerTextBrush));
@@ -499,6 +526,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             StatusHint = "点「选择目录」指定安装位置";
             ToggleHint = "找到游戏后才能启用";
             StatusBrush = Brush.Parse("#D97706");
+            LoaderPresent = false;
+            UsingExternalLoader = false;
             ShowCleanResidue = false;
             Plugins.Clear();
             Components.Clear();
@@ -510,11 +539,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         var st = LoaderInspector.Inspect(_game, _store);
+        var comps = _components.List(_game);
+        var hasUnlock = comps.Any(c => IsUnlockPlugin(c.Name)) ||
+                        st.Plugins.Any(p => IsUnlockPlugin(p.Name));
+
+        LoaderPresent = st.CorePresent;
+        UsingExternalLoader = st.CorePresent && !st.ManagedByUs;
 
         _syncing = true;
-        // 残留态虽然目录还在，但核心已删、游戏根本不会加载任何插件，
-        // 这时候开关必须是关的，否则用户会以为 MOD 还开着。
-        ToggleOn = st.CorePresent;
+        // 开关跟着“内置解锁插件是否已安装”走，而不是只看 loader 核心。
+        // 已有第三方 BepInEx 时，打开开关只安装插件，不覆盖 loader。
+        ToggleOn = st.CorePresent && hasUnlock;
         _syncing = false;
 
         if (!st.CorePresent)
@@ -545,17 +580,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         else if (st.ManagedByUs)
         {
             var door = string.IsNullOrWhiteSpace(st.DoorstopVersion) ? "" : $" · Doorstop {st.DoorstopVersion}";
-            StatusText = "已启用";
-            StatusHint = $"BepInEx {st.BepInExVersion ?? "未知"}{door} · 本工具安装";
-            ToggleHint = "关闭会移除内置解锁插件和本工具安装的 loader，并还原被覆盖的原文件。";
-            StatusBrush = Brush.Parse("#16A34A");
+            StatusText = hasUnlock ? "已启用" : "已安装 loader";
+            StatusHint = $"BepInEx {st.BepInExVersion ?? "未知"}{door} · 本工具安装" +
+                         (hasUnlock ? "" : " · 未安装内置插件");
+            ToggleHint = hasUnlock
+                ? "关闭会移除内置解锁插件和本工具安装的 loader，并还原被覆盖的原文件。"
+                : "打开会安装内置解锁插件，不会重装 loader。";
+            StatusBrush = hasUnlock ? Brush.Parse("#16A34A") : Brush.Parse("#D97706");
         }
         else
         {
-            StatusText = "已存在（他人安装）";
-            StatusHint = "检测到来源不明的 BepInEx，工具不会擅自删除";
-            ToggleHint = "可以覆盖安装（原文件会备份），但卸载只能还原本工具写入的部分。";
-            StatusBrush = Brush.Parse("#D97706");
+            StatusText = hasUnlock ? "已启用 · 现有 BepInEx" : "已检测到 BepInEx";
+            StatusHint = hasUnlock
+                ? "使用现有 BepInEx，仅管理内置解锁插件"
+                : "现有 BepInEx 保留，可只安装内置解锁插件";
+            ToggleHint = hasUnlock
+                ? "关闭只会移除内置解锁插件，不会卸载现有 BepInEx。"
+                : "打开只会安装内置解锁插件，不会覆盖现有 BepInEx。";
+            StatusBrush = hasUnlock ? Brush.Parse("#16A34A") : Brush.Parse("#D97706");
         }
 
         ShowCleanResidue = st.ResidueOnly;
@@ -569,7 +611,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         // 组件：本工具安装、可整包开关与移除的第三方插件
-        var comps = _components.List(_game);
         Components.Clear();
         foreach (var c in comps) Components.Add(new ComponentItem(this, c, st.CorePresent));
 
@@ -619,26 +660,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         var st = LoaderInspector.Inspect(game, _store);
-        var force = false;
 
-        if (!st.CorePresent)
+        // 已有 BepInEx：无论是本工具还是别的来源，都只补装内置解锁插件。
+        // 不覆盖、不接管用户现有的 loader。
+        if (st.CorePresent)
         {
-            // 没有 loader 核心：残留也好、只剩插件也好，都不是一份能用的 BepInEx，
-            // 不该拿「他人安装」去吓用户，直接覆盖装一份完整的
-            force = true;
-        }
-        else if (st.Present && !st.ManagedByUs)
-        {
-            var ok = await ConfirmAsync("目录里已有 BepInEx",
-                "检测到一份不是本工具安装的 BepInEx。继续会覆盖其中的同名文件（原文件先备份，关闭开关时还原）。是否继续？");
-            if (!ok) { RefreshStatus(); return; }
-            force = true;
-        }
-        else if (st.Present && st.ManagedByUs)
-        {
-            force = true;
+            IsBusy = true;
+            BusyText = "正在安装内置解锁插件…";
+            try
+            {
+                var ok = await InstallBuiltInCoreAsync(game);
+                if (ok)
+                {
+                    Log(st.ManagedByUs
+                        ? "已安装内置皮肤解锁插件。启动游戏即可生效。"
+                        : "已使用现有 BepInEx 安装内置皮肤解锁插件，未改动现有 loader。");
+                }
+                else
+                {
+                    Log("内置解锁插件安装失败，请确认 BepInEx/plugins 可写后重试。");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"安装内置插件出错：{ex.Message}");
+            }
+            finally
+            {
+                IsBusy = false;
+                BusyText = "";
+                RefreshStatus();
+            }
+            return;
         }
 
+        // 没有 loader 核心：安装完整 loader，再补内置插件。
         var pkg = ResolvePackage();
         if (pkg == null)
         {
@@ -653,7 +709,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             var dir = pkg.Directory;
-            var r = await Task.Run(() => _installer.Install(game, dir, force));
+            var r = await Task.Run(() => _installer.Install(game, dir, force: true));
             WriteResult(r);
             if (r.Success)
             {
@@ -700,9 +756,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
             // 核心早就没了，剩下的缓存日志可以顺手清掉，不必让用户去手工删目录
             if (st.ResidueOnly) { await CleanResidueCoreAsync(game, askConfirm: true); return; }
 
-            await ConfirmAsync("无法自动还原",
-                "这份 BepInEx 不是本工具安装的，工具不会删除来源不明的文件。\n\n如需彻底移除，请手工删除 winhttp.dll、doorstop_config.ini、.doorstop_version 和 BepInEx 目录。");
-            RefreshStatus();
+            if (ProcessGuard.IsGameRunning())
+            {
+                Log("游戏正在运行，请先完全退出游戏。");
+                GameRunning = true;
+                RefreshStatus();
+                return;
+            }
+
+            var comps = _components.List(game);
+            if (!comps.Any(c => IsUnlockPlugin(c.Name)))
+            {
+                Log("现有 BepInEx 不是本工具安装的，也没有本工具安装的解锁插件，无需还原。");
+                RefreshStatus();
+                return;
+            }
+
+            IsBusy = true;
+            BusyText = "正在移除内置解锁插件…";
+            try
+            {
+                var r = await Task.Run(() => _components.RemoveAll(game));
+                WriteResult(r);
+                Log("已移除本工具安装的内置解锁插件；现有 BepInEx 保持不动。");
+            }
+            catch (Exception ex)
+            {
+                Log($"移除内置插件出错：{ex.Message}");
+            }
+            finally
+            {
+                IsBusy = false;
+                BusyText = "";
+                RefreshStatus();
+            }
             return;
         }
 
