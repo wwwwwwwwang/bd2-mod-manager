@@ -101,7 +101,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string GamePath => _game?.Root ?? "尚未找到 Brown Dust 2";
     public string GameMeta => _game == null
-        ? "支持 Steam / 官方启动器安装"
+        ? "支持官网启动器安装版"
         : $"Unity {_game.UnityVersion ?? "未识别"} · {_game.ExeName}";
     public bool HasGame => _hasGame;
     public bool HasNoPlugins => Plugins.Count == 0;

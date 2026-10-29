@@ -18,8 +18,7 @@
             CornerRadius="28"
             Background="{StaticResource ShellGradient}"
             BorderBrush="#D9E8FB"
-            BorderThickness="1"
-            ClipToBounds="True">
+            BorderThickness="1">
       <Border.BoxShadow>
         <BoxShadows>0 24 60 -18 #332563EB, 0 8 24 -12 #1A0F172A</BoxShadows>
       </Border.BoxShadow>
@@ -199,8 +198,9 @@
     </Border>
 
     <!-- ============ 抽屉遮罩与面板 ============ -->
-    <Grid Margin="20" IsVisible="{Binding IsAnySheetOpen}"
-          ClipToBounds="True" ZIndex="50">
+    <Border Margin="20" IsVisible="{Binding IsAnySheetOpen}"
+            CornerRadius="28" ClipToBounds="True" ZIndex="50">
+      <Grid>
       <Button Background="#330F172A" BorderThickness="0" Padding="0"
               Command="{Binding CloseSheetCommand}"
               HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
@@ -268,6 +268,18 @@
                   Command="{Binding CleanResidueCommand}"
                   IsVisible="{Binding ShowCleanResidue}"
                   IsEnabled="{Binding CanCleanResidue}" />
+
+          <Border IsVisible="{Binding ShowPickPackage}"
+                  Background="#FFF8F1" BorderBrush="#F3D6BC" BorderThickness="1"
+                  CornerRadius="10" Padding="10,8">
+            <StackPanel Spacing="5">
+              <TextBlock Text="缺少加载器包" FontSize="11.5" FontWeight="SemiBold" />
+              <TextBlock Text="当前构建没有内嵌 bd2-loader.zip。" FontSize="10"
+                         Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
+              <Button Classes="ghost" Content="选择加载器包" HorizontalAlignment="Left"
+                      Command="{Binding PickPackageCommand}" />
+            </StackPanel>
+          </Border>
         </StackPanel>
       </Border>
 
@@ -315,7 +327,8 @@
           </Border>
         </StackPanel>
       </Border>
-    </Grid>
+      </Grid>
+    </Border>
 
     <!-- ============ 确认浮层 ============ -->
     <Border ZIndex="100"
