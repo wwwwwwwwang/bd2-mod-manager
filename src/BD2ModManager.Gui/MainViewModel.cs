@@ -339,7 +339,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var result = await UpdateChecker.CheckAsync(Version, force: manual);
+            var result = await UpdateChecker.CheckAsync(Version);
             if (!result.Success)
             {
                 if (manual)

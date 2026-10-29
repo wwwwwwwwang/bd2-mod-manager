@@ -6,7 +6,7 @@ namespace BD2ModManager.Gui;
 
 /// <summary>
 /// 轻量更新检查：只读 GitHub Release 元数据，不下载、不执行任何文件。
-/// 结果缓存 24 小时；手动检查时绕过缓存。
+/// 每次启动都请求一次；网络失败时回退到最近一次成功结果。
 /// </summary>
 public static class UpdateChecker
 {
@@ -20,17 +20,12 @@ public static class UpdateChecker
 
     public static async Task<UpdateCheckResult> CheckAsync(
         string currentVersion,
-        bool force = false,
         CancellationToken cancellationToken = default)
     {
         var cache = ReadCache();
 
-        if (!force && cache != null &&
-            DateTimeOffset.UtcNow - cache.CheckedAt < TimeSpan.FromHours(24))
-        {
-            return FromCache(cache, currentVersion);
-        }
-
+        // 不按 24 小时阻断检查：新版本可能在上一次检查后立刻发布。
+        // 缓存只作为网络失败时的回退，不作为“已检查”的结论。
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApi);
