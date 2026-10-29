@@ -22,6 +22,12 @@ namespace Suiren.BD2.SkinUnlock
         internal static Action<string> LogWarn;
 
         /// <summary>
+        /// 目录构建入口。补丁被游戏调用时，若目录还没建好就现场建一次。
+        /// 有了它，「等 Update 轮询」就不再是前置条件。
+        /// </summary>
+        internal static Func<bool> EnsureCatalog;
+
+        /// <summary>
         /// 已挂上的补丁，退出时逐个撤销。
         /// 不用 UnpatchSelf / UnpatchAll：这两个在不同 Harmony 发行版里签名不一致，
         /// 而 Unpatch(MethodBase, MethodInfo) 是两边都稳定的 API。
@@ -182,7 +188,11 @@ namespace Suiren.BD2.SkinUnlock
 
             var r = Refs;
             var cat = Catalog;
-            if (r == null || !r.Ready || cat == null || !cat.Ready) return;
+            if (r == null || !r.Ready || cat == null) return;
+
+            // 目录没建好就现场建：这个补丁是游戏在查皮肤列表时调进来的，
+            // 此刻设计表一定已经下发，比等定时器靠谱。
+            if (!cat.Ready && !(EnsureCatalog?.Invoke() ?? false)) return;
 
             try
             {

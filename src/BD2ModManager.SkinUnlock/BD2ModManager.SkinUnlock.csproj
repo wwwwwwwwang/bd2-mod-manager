@@ -13,9 +13,9 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
 
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
+    <Version>1.1.1</Version>
+    <AssemblyVersion>1.1.1.0</AssemblyVersion>
+    <FileVersion>1.1.1.0</FileVersion>
     <Product>BD2 SkinUnlock</Product>
 
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

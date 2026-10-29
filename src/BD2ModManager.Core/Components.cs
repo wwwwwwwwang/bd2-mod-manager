@@ -63,8 +63,9 @@ public sealed class ComponentManager
             {
                 try
                 {
-                    var p = Path.Combine(game.Root, f.Path.Replace('/', Path.DirectorySeparatorChar));
-                    if (File.Exists(p)) size += new FileInfo(p).Length;
+                    // 记录里的路径可能是启用态也可能是禁用态，按实际存在的那一侧算
+                    var p = ResolvePath(game.Root, f.Path);
+                    if (p != null) size += new FileInfo(p).Length;
                 }
                 catch { }
             }
@@ -355,6 +356,32 @@ public sealed class ComponentManager
         return r;
     }
 
+    /// <summary>
+    /// 把记录里的相对路径落成实际存在的绝对路径。
+    ///
+    /// 记录存的是「切换那一刻的路径」，`.dll` 与 `.dll.disabled` 指向同一个文件。
+    /// 一旦外部改过名、或上次切换中途失败，记录就会停在另一侧 —— 此时直接按记录
+    /// 找文件会落空（界面显示 0 KB、移除时又静默跳过留下残留）。这里两侧都试一遍。
+    /// </summary>
+    private static string? ResolvePath(string root, string rel)
+    {
+        var abs = Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(abs)) return abs;
+
+        if (rel.EndsWith(".dll.disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            var on = abs[..^".disabled".Length];
+            if (File.Exists(on)) return on;
+        }
+        else if (rel.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            var off = abs + ".disabled";
+            if (File.Exists(off)) return off;
+        }
+
+        return null;
+    }
+
     private OpResult RemoveInternal(GameInstall game, ComponentState state, ComponentRecord rec)
     {
         var r = new OpResult();
@@ -362,8 +389,8 @@ public sealed class ComponentManager
 
         foreach (var f in rec.Files)
         {
-            var abs = Path.Combine(game.Root, f.Path.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(abs)) continue;
+            var abs = ResolvePath(game.Root, f.Path);
+            if (abs == null) continue;
             try
             {
                 var cur = Hashing.Sha256File(abs);
@@ -426,7 +453,20 @@ public sealed class ComponentManager
                 if (enabled && isOff)
                 {
                     var target = abs[..^".disabled".Length];
-                    if (File.Exists(target)) continue;
+
+                    if (File.Exists(target))
+                    {
+                        // 磁盘上已经是启用态（外部改过名 / 上次切换中断）。
+                        // 不能只 continue：记录还停在 .disabled，之后按它找文件会落空。
+                        var rel = ToRel(game.Root, target);
+                        if (!string.Equals(f.Path, rel, StringComparison.OrdinalIgnoreCase))
+                        {
+                            f.Path = rel;
+                            changed++;
+                        }
+                        continue;
+                    }
+
                     if (!File.Exists(abs)) { f.Path = ToRel(game.Root, target); continue; }
                     File.Move(abs, target);
                     f.Path = ToRel(game.Root, target);
@@ -435,8 +475,21 @@ public sealed class ComponentManager
                 else if (!enabled && isDll)
                 {
                     if (!File.Exists(abs)) continue;
-                    File.Move(abs, abs + ".disabled");
-                    f.Path = ToRel(game.Root, abs + ".disabled");
+
+                    var off = abs + ".disabled";
+                    if (File.Exists(off))
+                    {
+                        var rel = ToRel(game.Root, off);
+                        if (!string.Equals(f.Path, rel, StringComparison.OrdinalIgnoreCase))
+                        {
+                            f.Path = rel;
+                            changed++;
+                        }
+                        continue;
+                    }
+
+                    File.Move(abs, off);
+                    f.Path = ToRel(game.Root, off);
                     changed++;
                 }
             }

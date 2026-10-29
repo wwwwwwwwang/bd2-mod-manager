@@ -363,11 +363,11 @@ namespace Suiren.BD2.SkinUnlock
                 if (ps.Length != 2) continue;
                 if (ps[0].ParameterType != typeof(int)) continue;
 
-                // ref Action<Sprite>：参数类型是 byref，元素类型才是委托
+                // 回调参数的形态两种都要认：ref Action<Sprite>（byref）和值传递的
+                // Action<Sprite>。参考实现实测到的是后者，只认 byref 会永远匹配不上。
                 var t = ps[1].ParameterType;
-                if (!t.IsByRef) continue;
-                var inner = t.GetElementType();
-                if (inner == null || !typeof(Delegate).IsAssignableFrom(inner)) continue;
+                if (t.IsByRef) t = t.GetElementType();
+                if (t == null || !typeof(Delegate).IsAssignableFrom(t)) continue;
 
                 LoadTexture = m;
                 return;

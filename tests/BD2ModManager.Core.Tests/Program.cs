@@ -25,6 +25,7 @@ internal static class Program
             ResidueDetection();
             ResidueCleanup();
             TogglePathContract();
+            ComponentPathDrift();
             FullInstallUninstallCycle(args.Length > 0 ? args[0] : null);
         }
         finally
@@ -149,6 +150,68 @@ internal static class Program
     }
 
     // ---------------------------------------------------------------- 场景 4
+
+    /// <summary>
+    /// 组件开关同样是改文件名，而记录里存的是「切换那一刻的路径」。
+    /// 一旦记录停在另一侧（外部改过名、或上次切换中断），按它找文件就会落空：
+    /// 界面上显示 0 KB，移除组件时又静默跳过 —— 文件留在磁盘上变成「外来插件」。
+    /// </summary>
+    private static void ComponentPathDrift()
+    {
+        Console.WriteLine("[4] 组件记录路径漂移：仍要算得出大小、删得干净");
+        var root = NewGameDir("compdrift");
+        var store = NewStore();
+        var game = Game(root);
+        var comp = new ComponentManager(store);
+
+        Directory.CreateDirectory(Path.Combine(root, "BepInEx", "plugins"));
+
+        var src = NewDir("CompDemo");
+        Directory.CreateDirectory(src);
+        File.WriteAllBytes(Path.Combine(src, "CompDemo.dll"), new byte[4096]);
+
+        var inst = comp.Install(game, src);
+        Check("组件安装成功", inst.Success, string.Join(" | ", inst.Errors));
+
+        var first = comp.List(game);
+        Check("读到 1 个组件", first.Count == 1, $"count={first.Count}");
+        if (first.Count != 1) { Console.WriteLine(); return; }
+        Check("初始大小不为 0", first[0].Size > 0, $"size={first[0].Size}");
+
+        var name = first[0].Name;
+        var dir = Path.Combine(root, first[0].RelativeDir.Replace('/', Path.DirectorySeparatorChar));
+
+        var off = comp.SetEnabled(game, name, false);
+        Check("禁用成功", off.Success, string.Join(" | ", off.Errors));
+
+        var disabledPath = Path.Combine(dir, "CompDemo.dll.disabled");
+        var enabledPath = Path.Combine(dir, "CompDemo.dll");
+        Check("文件已改名为 .disabled", File.Exists(disabledPath));
+
+        // 模拟外部把文件改回启用态：记录仍停在 .disabled
+        File.Move(disabledPath, enabledPath);
+
+        var drifted = comp.List(game);
+        Check("记录漂移时仍算得出大小（不是 0 KB）",
+            drifted.Count == 1 && drifted[0].Size > 0, $"size={drifted[0].Size}");
+        Check("记录漂移时不误报「文件已不在磁盘上」",
+            drifted.Count == 1 && !drifted[0].Missing);
+
+        var on = comp.SetEnabled(game, name, true);
+        Check("重新启用成功", on.Success, string.Join(" | ", on.Errors));
+        Check("文件仍是 .dll", File.Exists(enabledPath) && !File.Exists(disabledPath));
+
+        var healed = comp.List(game);
+        Check("矫正后大小正常", healed.Count == 1 && healed[0].Size > 0, $"size={healed[0].Size}");
+
+        var removed = comp.Remove(game, name);
+        Check("移除成功", removed.Success, string.Join(" | ", removed.Errors));
+        Check("dll 真的被删掉了（不留残留）", !File.Exists(enabledPath) && !File.Exists(disabledPath));
+        Check("组件记录已清空", comp.List(game).Count == 0);
+        Console.WriteLine();
+    }
+
+    // ---------------------------------------------------------------- 场景 5
 
     private static void FullInstallUninstallCycle(string? packagePath)
     {

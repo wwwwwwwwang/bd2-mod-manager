@@ -28,6 +28,7 @@ public static class LoaderInspector
             Directory.Exists(Path.Combine(bepDir, "core")) ||
             File.Exists(Path.Combine(bepDir, "config", "BepInEx.cfg")) ||
             File.Exists(Path.Combine(bepDir, "config", "com.bepis.bepinex.configurationmanager.cfg")) ||
+            File.Exists(Path.Combine(bepDir, "SkinUnlock.probe.log")) ||
             HasLogFiles(bepDir));
 
         // 部分安装的判定

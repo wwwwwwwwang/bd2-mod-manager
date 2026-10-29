@@ -239,7 +239,8 @@ public sealed class LoaderInstaller
 
         // 2.5) 清运行时产物：缓存、日志、自带配置都是 loader 第一次启动时自己生成的，
         //      不在这里删掉，BepInEx 目录就会留个空壳，下次检测还会被当成「他人安装」。
-        CleanRuntimeTraces(game, r);
+        //      卸载是彻底清场，连插件记下的皮肤选择一起删。
+        CleanRuntimeTraces(game, r, includePluginData: true);
 
         // 3) 清理空目录（深到浅）
         foreach (var d in state.Dirs.OrderByDescending(x => x.Length))
@@ -283,14 +284,22 @@ public sealed class LoaderInstaller
     private static readonly string[] RuntimeConfigFiles =
     {
         "BepInEx/config/BepInEx.cfg",
-        "BepInEx/config/com.bepis.bepinex.configurationmanager.cfg"
+        "BepInEx/config/com.bepis.bepinex.configurationmanager.cfg",
+        "BepInEx/config/com.suiren.bd2.skinunlock.cfg"
     };
+
+    /// <summary>
+    /// 内置插件运行时写下的文件。probe.log 是纯粹的诊断输出，删掉无副作用；
+    /// selection.txt 记着玩家选过的皮肤，属于用户数据，只在「卸载 loader」时清。
+    /// </summary>
+    private const string ProbeLogRel = "BepInEx/SkinUnlock.probe.log";
+    private const string SelectionRel = "BepInEx/config/com.suiren.bd2.skinunlock.selection.txt";
 
     /// <summary>
     /// 清理 loader 的运行时产物（缓存、日志、自带配置）。
     /// 只碰已知名字的文件：plugins 下的插件、config 下其他 cfg 一律不动。
     /// </summary>
-    private int CleanRuntimeTraces(GameInstall game, OpResult r)
+    private int CleanRuntimeTraces(GameInstall game, OpResult r, bool includePluginData = false)
     {
         var bepDir = Path.Combine(game.Root, "BepInEx");
         if (!Directory.Exists(bepDir)) return 0;
@@ -326,6 +335,19 @@ public sealed class LoaderInstaller
         }
         catch { }
 
+        // 内置插件的诊断日志：重启游戏会重新生成，删掉无副作用
+        var probe = Path.Combine(game.Root, ProbeLogRel.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(probe))
+        {
+            try
+            {
+                File.Delete(probe);
+                r.Info($"清理日志：{ProbeLogRel}");
+                removed++;
+            }
+            catch (Exception ex) { r.Error($"清理日志失败 {ProbeLogRel}：{ex.Message}"); }
+        }
+
         foreach (var rel in RuntimeConfigFiles)
         {
             var p = Path.Combine(game.Root, rel.Replace('/', Path.DirectorySeparatorChar));
@@ -337,6 +359,23 @@ public sealed class LoaderInstaller
                 removed++;
             }
             catch (Exception ex) { r.Error($"清理配置失败 {rel}：{ex.Message}"); }
+        }
+
+        // 玩家选过的皮肤：只在卸载 loader 时清，清理残留时留着，
+        // 否则用户只是清一下缓存，选好的皮肤全丢。
+        if (includePluginData)
+        {
+            var sel = Path.Combine(game.Root, SelectionRel.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(sel))
+            {
+                try
+                {
+                    File.Delete(sel);
+                    r.Info($"清理插件数据：{SelectionRel}");
+                    removed++;
+                }
+                catch (Exception ex) { r.Error($"清理插件数据失败 {SelectionRel}：{ex.Message}"); }
+            }
         }
 
         RemoveEmptyTree(bepDir);
