@@ -1,5 +1,9 @@
 using System.Collections.Specialized;
+using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -7,71 +11,99 @@ namespace BD2ModManager.Gui;
 
 public partial class MainWindow : Window
 {
-    /// <summary>日志每一行的行高，要和 XAML 里 TextBlock 的 LineHeight 保持一致。</summary>
-    private const double LogLineHeight = 18;
-
     private MainViewModel? _vm;
-    private bool _logHeightSnapped;
+    private readonly DispatcherTimer _spinner;
+    private double _spinnerAngle;
 
     public MainWindow()
     {
         InitializeComponent();
         DataContextChanged += (_, _) => Hook();
 
-        // 等窗口真正布好局再量，否则拿到的是布局前的尺寸，会把高度改小
-        Opened += (_, _) => Dispatcher.UIThread.Post(SnapLogListHeight, DispatcherPriority.Loaded);
+        _spinner = new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render,
+            (_, _) => TickSpinner());
+        _spinner.Start();
+    }
+
+    private void TickSpinner()
+    {
+        if (LoadingArc.RenderTransform is not RotateTransform rotate) return;
+
+        if (DataContext is not MainViewModel vm || !vm.IsBusy)
+        {
+            _spinnerAngle = 0;
+            rotate.Angle = 0;
+            return;
+        }
+
+        _spinnerAngle = (_spinnerAngle + 5) % 360;
+        rotate.Angle = _spinnerAngle;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _spinner.Stop();
+        base.OnClosed(e);
     }
 
     private void Hook()
     {
-        if (_vm != null) _vm.LogLines.CollectionChanged -= OnLogLinesChanged;
+        if (_vm != null)
+        {
+            _vm.LogLines.CollectionChanged -= OnLogLinesChanged;
+            _vm.PropertyChanged -= OnVmPropertyChanged;
+        }
 
         _vm = DataContext as MainViewModel;
 
-        if (_vm != null) _vm.LogLines.CollectionChanged += OnLogLinesChanged;
+        if (_vm != null)
+        {
+            _vm.LogLines.CollectionChanged += OnLogLinesChanged;
+            _vm.PropertyChanged += OnVmPropertyChanged;
+        }
+    }
+
+    private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.LogsSheetOpen) || _vm?.LogsSheetOpen != true) return;
+        Dispatcher.UIThread.Post(() => FindLogScroll()?.ScrollToEnd(), DispatcherPriority.Loaded);
     }
 
     /// <summary>
     /// 新日志进来就把列表滚到底。
-    /// 不用 ScrollIntoView：它会一路冒泡，把外面那层整页 ScrollViewer 也带着滚，
-    /// 结果整页往上跳、卡片标题被切掉。这里只动日志列表自己的滚动条。
+    /// 不用 ScrollIntoView：它会一路冒泡，把抽屉外层也带着滚。
+    /// 这里只动日志列表自己的滚动条。
     /// </summary>
     private void OnLogLinesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.Action != NotifyCollectionChangedAction.Add) return;
-
         FindLogScroll()?.ScrollToEnd();
     }
 
     private ScrollViewer? FindLogScroll() =>
         LogList.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
 
-    /// <summary>
-    /// 兜底：把日志列表高度修成行高的整数倍。
-    ///
-    /// 正常情况下 XAML 里 Height 已经是 5×18，视口高度就是 90，这里算出来是 0 不会动。
-    /// 留着是为了防止以后有人给 ListBox 加边框或内边距——那些会算进滚动区域，
-    /// 让视口变成 101.33 这种非整数倍，滚到底时上下各露半行。
-    /// 只修一次：高度与视口之差是常数。
-    /// </summary>
-    private void SnapLogListHeight()
+    private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_logHeightSnapped) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
 
-        var sv = FindLogScroll();
-        if (sv == null) return;
+        // 标题栏里的按钮自己处理点击，不要把它们当成拖拽区域。
+        if (e.Source is Control source && source.FindAncestorOfType<Button>() != null) return;
 
-        var viewport = sv.Viewport.Height;
-        if (viewport <= LogLineHeight)
-        {
-            // 还没量出来，下一轮再说
-            Dispatcher.UIThread.Post(SnapLogListHeight, DispatcherPriority.Background);
-            return;
-        }
+        BeginMoveDrag(e);
+    }
 
-        var target = Math.Floor(viewport / LogLineHeight) * LogLineHeight;
-        var delta = target - viewport;
-        if (Math.Abs(delta) > 0.01) LogList.Height += delta;
-        _logHeightSnapped = true;
+    private void Minimize_Click(object? sender, RoutedEventArgs e) =>
+        WindowState = WindowState.Minimized;
+
+    private void Close_Click(object? sender, RoutedEventArgs e) => Close();
+
+    private async void CopyPath_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm) return;
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard == null) return;
+
+        await clipboard.SetTextAsync(vm.GamePath);
     }
 }

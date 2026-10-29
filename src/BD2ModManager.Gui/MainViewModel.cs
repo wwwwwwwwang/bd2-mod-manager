@@ -34,6 +34,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _confirmVisible;
     private bool _showPickPackage;
     private bool _showCleanResidue;
+    private bool _pathSheetOpen;
+    private bool _logsSheetOpen;
+    private bool _unreadLogs;
 
     private string _busyText = "";
     private string _statusText = "尚未检测";
@@ -56,7 +59,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InstallBuiltInCommand = new RelayCommand(() => _ = InstallBuiltInAsync());
         OpenGameFolderCommand = new RelayCommand(OpenGameFolder);
         CleanResidueCommand = new RelayCommand(() => _ = CleanResidueAsync());
-        ClearLogCommand = new RelayCommand(() => LogLines.Clear());
+        ClearLogCommand = new RelayCommand(ClearLogs);
+        ToggleCommand = new RelayCommand(ToggleFromButton);
+        OpenPathSheetCommand = new RelayCommand(OpenPathSheet);
+        OpenLogsSheetCommand = new RelayCommand(OpenLogsSheet);
+        CloseSheetCommand = new RelayCommand(CloseSheet);
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
         ConfirmCancelCommand = new RelayCommand(() => _confirm?.TrySetResult(false));
         MinimizeToTrayHint = "把 .dll 放进 BepInEx\\plugins 目录，重启游戏即可生效。";
@@ -85,6 +92,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand OpenGameFolderCommand { get; }
     public ICommand CleanResidueCommand { get; }
     public ICommand ClearLogCommand { get; }
+    public ICommand ToggleCommand { get; }
+    public ICommand OpenPathSheetCommand { get; }
+    public ICommand OpenLogsSheetCommand { get; }
+    public ICommand CloseSheetCommand { get; }
     public ICommand ConfirmYesCommand { get; }
     public ICommand ConfirmCancelCommand { get; }
 
@@ -131,10 +142,63 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public bool CanCleanResidue => ShowCleanResidue && HasGame && !IsBusy && !GameRunning;
 
+    public bool PathSheetOpen
+    {
+        get => _pathSheetOpen;
+        private set
+        {
+            if (!Set(ref _pathSheetOpen, value)) return;
+            OnPropertyChanged(nameof(IsAnySheetOpen));
+        }
+    }
+
+    public bool LogsSheetOpen
+    {
+        get => _logsSheetOpen;
+        private set
+        {
+            if (!Set(ref _logsSheetOpen, value)) return;
+            OnPropertyChanged(nameof(IsAnySheetOpen));
+        }
+    }
+
+    public bool IsAnySheetOpen => PathSheetOpen || LogsSheetOpen;
+
+    public bool UnreadLogs
+    {
+        get => _unreadLogs;
+        private set => Set(ref _unreadLogs, value);
+    }
+
+    public string LogCountText => LogLines.Count.ToString();
+
+    public string HeroTitle => IsBusy
+        ? "正在同步组件"
+        : ToggleOn ? "已启用 Mod 支持" : "未启用 · 原生纯净状态";
+
+    public string HeroHint => IsBusy
+        ? (string.IsNullOrWhiteSpace(BusyText) ? "正在准备…" : BusyText)
+        : ToggleOn
+            ? "内置皮肤解锁插件已就绪 · 启动游戏即可生效"
+            : "点击中央开关，一键安装解锁插件与 Loader";
+
+    public string PowerLabel => IsBusy ? "处理中" : ToggleOn ? "已启用" : "启用";
+
+    public IBrush HeroDotBrush => ToggleOn
+        ? Brush.Parse("#2563EB")
+        : Brush.Parse("#CBD5E1");
+
     /// <summary>日志按行存，交给 ListBox 显示——它的滚动最靠谱。</summary>
     public ObservableCollection<string> LogLines { get; } = new();
 
-    public string BusyText { get => _busyText; private set => Set(ref _busyText, value); }
+    public string BusyText
+    {
+        get => _busyText;
+        private set
+        {
+            if (Set(ref _busyText, value)) NotifyHeroState();
+        }
+    }
 
     public bool IsBusy
     {
@@ -145,7 +209,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanToggle));
             OnPropertyChanged(nameof(CanManageComponents));
             OnPropertyChanged(nameof(CanCleanResidue));
+            NotifyHeroState();
         }
+    }
+
+    private void NotifyHeroState()
+    {
+        OnPropertyChanged(nameof(HeroTitle));
+        OnPropertyChanged(nameof(HeroHint));
+        OnPropertyChanged(nameof(PowerLabel));
+        OnPropertyChanged(nameof(HeroDotBrush));
+    }
+
+    private void ToggleFromButton()
+    {
+        if (!CanToggle) return;
+        ToggleOn = !ToggleOn;
+    }
+
+    private void OpenPathSheet()
+    {
+        LogsSheetOpen = false;
+        PathSheetOpen = true;
+    }
+
+    private void OpenLogsSheet()
+    {
+        PathSheetOpen = false;
+        LogsSheetOpen = true;
+        UnreadLogs = false;
+    }
+
+    private void CloseSheet()
+    {
+        PathSheetOpen = false;
+        LogsSheetOpen = false;
     }
 
     public string StatusText { get => _statusText; private set => Set(ref _statusText, value); }
@@ -169,6 +267,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (!Set(ref _toggleOn, value)) return;
             OnPropertyChanged(nameof(CanManageComponents));
+            NotifyHeroState();
             if (_syncing) return;
             _ = ApplyToggleAsync(value);
         }
@@ -231,6 +330,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IsBusy = false;
             BusyText = "";
             RefreshStatus();
+            if (firstRun && _game == null) OpenPathSheet();
         }
     }
 
@@ -258,6 +358,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Plugins.Clear();
             Components.Clear();
             NotifyPlugins();
+            NotifyHeroState();
             OnPropertyChanged(nameof(CanToggle));
             OnPropertyChanged(nameof(CanManageComponents));
             return;
@@ -340,6 +441,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanToggle));
         OnPropertyChanged(nameof(CanManageComponents));
         OnPropertyChanged(nameof(StatusBrush));
+        NotifyHeroState();
     }
 
     private void NotifyPlugins()
@@ -842,6 +944,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LogLines.Add(line);
         // 只留最近若干行，避免长时间运行后列表无限增长
         while (LogLines.Count > MaxLogLines) LogLines.RemoveAt(0);
+        OnPropertyChanged(nameof(LogCountText));
+        if (!LogsSheetOpen) UnreadLogs = true;
+    }
+
+    private void ClearLogs()
+    {
+        LogLines.Clear();
+        UnreadLogs = false;
+        OnPropertyChanged(nameof(LogCountText));
     }
 
     private void WriteResult(OpResult r)
