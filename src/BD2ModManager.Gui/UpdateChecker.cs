@@ -74,7 +74,8 @@ public static class UpdateChecker
                 string.IsNullOrWhiteSpace(url) ? ReleasesPage : url!,
                 assets.DownloadUrl,
                 assets.ChecksumUrl,
-                assets.AssetName);
+                assets.AssetName,
+                assets.ExpectedSha256);
 
             WriteCache(result);
             return result;
@@ -132,7 +133,7 @@ public static class UpdateChecker
                 $"https://github.com/wwwwwwwwang/bd2-mod-manager/releases/tag/{tag}";
             var result = UpdateCheckResult.CreateSuccess(
                 currentVersion, latest, releaseUrl,
-                assets.DownloadUrl, assets.ChecksumUrl, assets.AssetName);
+                assets.DownloadUrl, assets.ChecksumUrl, assets.AssetName, null);
             return result with { Warning = $"GitHub API 不可用（{reason}），已通过发布页检查" };
         }
         catch
@@ -145,13 +146,14 @@ public static class UpdateChecker
     /// 从 Release 资产中找当前平台的单文件 exe 和校验和。找不到时返回空，
     /// 调用方会退化成“手动下载”，不影响版本提示。
     /// </summary>
-    private static (string? DownloadUrl, string? ChecksumUrl, string? AssetName) FindAssets(
+    private static (string? DownloadUrl, string? ChecksumUrl, string? AssetName, string? ExpectedSha256) FindAssets(
         JsonElement root,
         string latestVersion)
     {
         string? downloadUrl = null;
         string? checksumUrl = null;
         string? assetName = null;
+        string? expectedSha256 = null;
         var tagName = root.TryGetProperty("tag_name", out var tagElement)
             ? tagElement.GetString()
             : null;
@@ -159,7 +161,7 @@ public static class UpdateChecker
         if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
         {
             var fallback = BuildFallbackAssets(latestVersion, tagName);
-            return (fallback.DownloadUrl, fallback.ChecksumUrl, fallback.AssetName);
+            return (fallback.DownloadUrl, fallback.ChecksumUrl, fallback.AssetName, null);
         }
 
         var expected = $"BD2ModManager-{latestVersion}-win-x64.exe";
@@ -188,6 +190,20 @@ public static class UpdateChecker
             {
                 downloadUrl = url;
                 assetName = name;
+                expectedSha256 = null;
+
+                // GitHub Release API 会给出 asset digest（sha256:...）。
+                // 有它就能直接校验本地文件，不必再请求一次 SHA256SUMS.txt。
+                if (asset.TryGetProperty("digest", out var digestElement))
+                {
+                    var digest = digestElement.GetString();
+                    const string prefix = "sha256:";
+                    if (!string.IsNullOrWhiteSpace(digest) &&
+                        digest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        expectedSha256 = digest[prefix.Length..].Trim();
+                    }
+                }
             }
         }
 
@@ -199,7 +215,7 @@ public static class UpdateChecker
             assetName ??= fallback.AssetName;
         }
 
-        return (downloadUrl, checksumUrl, assetName);
+        return (downloadUrl, checksumUrl, assetName, expectedSha256);
     }
 
     /// <summary>
@@ -244,7 +260,8 @@ public static class UpdateChecker
             cache.ReleaseUrl,
             string.IsNullOrWhiteSpace(cache.DownloadUrl) ? fallback.DownloadUrl : cache.DownloadUrl,
             string.IsNullOrWhiteSpace(cache.ChecksumUrl) ? fallback.ChecksumUrl : cache.ChecksumUrl,
-            string.IsNullOrWhiteSpace(cache.AssetName) ? fallback.AssetName : cache.AssetName);
+            string.IsNullOrWhiteSpace(cache.AssetName) ? fallback.AssetName : cache.AssetName,
+            cache.ExpectedSha256);
         return result with { Warning = warning, IsFromCache = true };
     }
 
@@ -274,7 +291,8 @@ public static class UpdateChecker
                 ReleaseUrl = result.ReleaseUrl,
                 DownloadUrl = result.DownloadUrl,
                 ChecksumUrl = result.ChecksumUrl,
-                AssetName = result.AssetName
+                AssetName = result.AssetName,
+                ExpectedSha256 = result.ExpectedSha256
             };
             File.WriteAllText(CachePath, JsonSerializer.Serialize(cache));
         }
@@ -309,6 +327,7 @@ public static class UpdateChecker
         public string? DownloadUrl { get; set; }
         public string? ChecksumUrl { get; set; }
         public string? AssetName { get; set; }
+        public string? ExpectedSha256 { get; set; }
     }
 }
 
@@ -322,13 +341,14 @@ public sealed record UpdateCheckResult(
     string? Warning = null,
     string? DownloadUrl = null,
     string? ChecksumUrl = null,
-    string? AssetName = null)
+    string? AssetName = null,
+    string? ExpectedSha256 = null)
 {
-    /// <summary>Release 同时提供了 exe 和 SHA256SUMS 时才走自动更新。</summary>
+    /// <summary>Release 提供了 exe，并且有 checksum 文件或 API digest 时才走自动更新。</summary>
     public bool CanAutoUpdate =>
         Available &&
         !string.IsNullOrWhiteSpace(DownloadUrl) &&
-        !string.IsNullOrWhiteSpace(ChecksumUrl) &&
+        (!string.IsNullOrWhiteSpace(ChecksumUrl) || !string.IsNullOrWhiteSpace(ExpectedSha256)) &&
         !string.IsNullOrWhiteSpace(AssetName);
 
     /// <summary>本次结果来自上次成功检查的缓存，不是当前网络查询。</summary>
@@ -340,7 +360,8 @@ public sealed record UpdateCheckResult(
         string releaseUrl,
         string? downloadUrl = null,
         string? checksumUrl = null,
-        string? assetName = null)
+        string? assetName = null,
+        string? expectedSha256 = null)
     {
         var current = ParseVersion(currentVersion);
         var latest = ParseVersion(latestVersion);
@@ -352,7 +373,8 @@ public sealed record UpdateCheckResult(
             releaseUrl,
             DownloadUrl: downloadUrl,
             ChecksumUrl: checksumUrl,
-            AssetName: assetName);
+            AssetName: assetName,
+            ExpectedSha256: expectedSha256);
     }
 
     public static UpdateCheckResult Failed(string error) =>

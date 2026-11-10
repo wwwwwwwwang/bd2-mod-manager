@@ -11,11 +11,13 @@ namespace BD2ModManager.Gui;
 public static class AutoUpdater
 {
     private static readonly HttpClient Http = CreateClient();
+    private static readonly HttpClient ChecksumHttp = CreateChecksumClient();
 
     public static async Task<string> DownloadAsync(
         UpdateCheckResult update,
         string targetDirectory,
         IProgress<double>? progress = null,
+        IProgress<string>? stage = null,
         CancellationToken cancellationToken = default)
     {
         if (!update.CanAutoUpdate)
@@ -66,7 +68,9 @@ public static class AutoUpdater
                 throw new IOException($"更新包下载不完整：{received}/{total}");
         }
 
-        await VerifyChecksumAsync(target, update.ChecksumUrl!, update.AssetName!, cancellationToken);
+        stage?.Report("正在校验更新包…");
+        await VerifyChecksumAsync(target, update, cancellationToken);
+        stage?.Report("校验通过，准备安装…");
         progress?.Report(1.0);
         return target;
     }
@@ -145,28 +149,36 @@ public static class AutoUpdater
 
     private static async Task VerifyChecksumAsync(
         string file,
-        string checksumUrl,
-        string assetName,
+        UpdateCheckResult update,
         CancellationToken cancellationToken)
     {
-        using var response = await Http.GetAsync(checksumUrl, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var text = await response.Content.ReadAsStringAsync(cancellationToken);
+        // GitHub Release API 的 asset digest 是首选：不依赖单独下载 SHA256SUMS.txt。
+        var expected = update.ExpectedSha256?.Trim();
 
-        string? expected = null;
-        foreach (var line in text.Split('\n'))
+        if (string.IsNullOrWhiteSpace(expected))
+        {
+            if (string.IsNullOrWhiteSpace(update.ChecksumUrl))
+                throw new InvalidOperationException("这个 Release 没有提供 SHA256 校验信息。");
+
+            var text = await DownloadChecksumTextAsync(update.ChecksumUrl, cancellationToken);
+
+            foreach (var line in text.Split('\n'))
         {
             var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 2 &&
-                string.Equals(parts[1].TrimStart('*'), assetName, StringComparison.OrdinalIgnoreCase))
+                string.Equals(parts[1].TrimStart('*'), update.AssetName, StringComparison.OrdinalIgnoreCase))
             {
                 expected = parts[0];
                 break;
+            }
             }
         }
 
         if (string.IsNullOrWhiteSpace(expected))
             throw new InvalidOperationException("SHA256SUMS.txt 中没有找到更新包。");
+
+        if (expected.Length != 64 || !expected.All(Uri.IsHexDigit))
+            throw new InvalidOperationException("更新包 SHA256 格式不合法。");
 
         await using var stream = File.OpenRead(file);
         var actual = Convert.ToHexString(SHA256.HashData(stream));
@@ -174,9 +186,39 @@ public static class AutoUpdater
             throw new InvalidOperationException("更新包 SHA256 校验失败，已取消更新。");
     }
 
+    private static async Task<string> DownloadChecksumTextAsync(string url, CancellationToken cancellationToken)
+    {
+        Exception? last = null;
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                using var response = await ChecksumHttp.GetAsync(url, cancellationToken);
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync(cancellationToken);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                last = ex;
+                if (attempt < 3)
+                    await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException(
+            "下载 SHA256SUMS.txt 失败，请检查网络后重试，或使用“手动下载”。", last);
+    }
+
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("BD2ModManager/auto-update");
+        return client;
+    }
+
+    private static HttpClient CreateChecksumClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("BD2ModManager/auto-update");
         return client;
     }
