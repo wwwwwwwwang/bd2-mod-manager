@@ -525,17 +525,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var progress = new Progress<double>(value =>
                 UpdateStatus = $"正在下载更新… {value:P0}");
+            var stage = new Progress<string>(text => UpdateStatus = text);
 
-            var downloaded = await AutoUpdater.DownloadAsync(update, directory, progress);
+            var downloaded = await AutoUpdater.DownloadAsync(update, directory, progress, stage);
             UpdateStatus = "正在安装更新…";
             AutoUpdater.ApplyAndRestart(downloaded);
             Environment.Exit(0);
         }
         catch (Exception ex)
         {
-            UpdateStatus = "自动更新失败，请换一个可写目录或手动下载";
+            UpdateStatus = $"自动更新失败：{ex.Message}";
             Log($"自动更新失败：{ex.Message}");
-            ShowToast("自动更新失败，请换一个可写目录或手动下载");
+            ShowToast("自动更新失败，请重试或手动下载");
         }
         finally
         {
