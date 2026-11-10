@@ -57,10 +57,14 @@ public static class UpdateChecker
             if (latest == null)
                 return UpdateCheckResult.Failed($"无法识别版本号：{tag}");
 
+            var assets = FindAssets(root, latest);
             var result = UpdateCheckResult.CreateSuccess(
                 currentVersion,
                 latest,
-                string.IsNullOrWhiteSpace(url) ? ReleasesPage : url!);
+                string.IsNullOrWhiteSpace(url) ? ReleasesPage : url!,
+                assets.DownloadUrl,
+                assets.ChecksumUrl,
+                assets.AssetName);
 
             WriteCache(result);
             return result;
@@ -77,6 +81,82 @@ public static class UpdateChecker
         }
     }
 
+    /// <summary>
+    /// 从 Release 资产中找当前平台的单文件 exe 和校验和。找不到时返回空，
+    /// 调用方会退化成“手动下载”，不影响版本提示。
+    /// </summary>
+    private static (string? DownloadUrl, string? ChecksumUrl, string? AssetName) FindAssets(
+        JsonElement root,
+        string latestVersion)
+    {
+        string? downloadUrl = null;
+        string? checksumUrl = null;
+        string? assetName = null;
+        var tagName = root.TryGetProperty("tag_name", out var tagElement)
+            ? tagElement.GetString()
+            : null;
+
+        if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+        {
+            var fallback = BuildFallbackAssets(latestVersion, tagName);
+            return (fallback.DownloadUrl, fallback.ChecksumUrl, fallback.AssetName);
+        }
+
+        var expected = $"BD2ModManager-{latestVersion}-win-x64.exe";
+        foreach (var asset in assets.EnumerateArray())
+        {
+            if (!asset.TryGetProperty("name", out var nameElement) ||
+                !asset.TryGetProperty("browser_download_url", out var urlElement))
+                continue;
+
+            var name = nameElement.GetString();
+            var url = urlElement.GetString();
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url)) continue;
+
+            if (string.Equals(name, "SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase))
+            {
+                checksumUrl = url;
+                continue;
+            }
+
+            if (!name.StartsWith("BD2ModManager-", StringComparison.OrdinalIgnoreCase) ||
+                !name.EndsWith("-win-x64.exe", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // 优先精确匹配当前 tag；预发布 tag 去掉后缀后，退而取第一个同平台资产。
+            if (downloadUrl == null || string.Equals(name, expected, StringComparison.OrdinalIgnoreCase))
+            {
+                downloadUrl = url;
+                assetName = name;
+            }
+        }
+
+        if (downloadUrl == null || checksumUrl == null)
+        {
+            var fallback = BuildFallbackAssets(latestVersion, tagName);
+            downloadUrl ??= fallback.DownloadUrl;
+            checksumUrl ??= fallback.ChecksumUrl;
+            assetName ??= fallback.AssetName;
+        }
+
+        return (downloadUrl, checksumUrl, assetName);
+    }
+
+    /// <summary>
+    /// Release 资产列表偶尔拿不到（例如 API 限流后的旧缓存），按仓库固定的
+    /// Release 命名规则拼出下载地址；下载时仍会用 SHA256SUMS 校验。
+    /// </summary>
+    private static (string DownloadUrl, string ChecksumUrl, string AssetName) BuildFallbackAssets(
+        string latestVersion,
+        string? tagName = null)
+    {
+        var tag = string.IsNullOrWhiteSpace(tagName) ? $"v{latestVersion}" : tagName!.Trim();
+        if (!tag.StartsWith('v') && !tag.StartsWith('V')) tag = "v" + tag;
+        var baseUrl = $"https://github.com/wwwwwwwwang/bd2-mod-manager/releases/download/{tag}";
+        var assetName = $"BD2ModManager-{latestVersion}-win-x64.exe";
+        return ($"{baseUrl}/{assetName}", $"{baseUrl}/SHA256SUMS.txt", assetName);
+    }
+
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
@@ -89,10 +169,14 @@ public static class UpdateChecker
         string currentVersion,
         string? warning = null)
     {
+        var fallback = BuildFallbackAssets(cache.LatestVersion);
         var result = UpdateCheckResult.CreateSuccess(
             currentVersion,
             cache.LatestVersion,
-            cache.ReleaseUrl);
+            cache.ReleaseUrl,
+            string.IsNullOrWhiteSpace(cache.DownloadUrl) ? fallback.DownloadUrl : cache.DownloadUrl,
+            string.IsNullOrWhiteSpace(cache.ChecksumUrl) ? fallback.ChecksumUrl : cache.ChecksumUrl,
+            string.IsNullOrWhiteSpace(cache.AssetName) ? fallback.AssetName : cache.AssetName);
         return warning == null ? result : result with { Warning = warning };
     }
 
@@ -119,7 +203,10 @@ public static class UpdateChecker
             {
                 CheckedAt = DateTimeOffset.UtcNow,
                 LatestVersion = result.LatestVersion,
-                ReleaseUrl = result.ReleaseUrl
+                ReleaseUrl = result.ReleaseUrl,
+                DownloadUrl = result.DownloadUrl,
+                ChecksumUrl = result.ChecksumUrl,
+                AssetName = result.AssetName
             };
             File.WriteAllText(CachePath, JsonSerializer.Serialize(cache));
         }
@@ -151,6 +238,9 @@ public static class UpdateChecker
         public DateTimeOffset CheckedAt { get; set; }
         public string LatestVersion { get; set; } = "";
         public string ReleaseUrl { get; set; } = ReleasesPage;
+        public string? DownloadUrl { get; set; }
+        public string? ChecksumUrl { get; set; }
+        public string? AssetName { get; set; }
     }
 }
 
@@ -161,12 +251,25 @@ public sealed record UpdateCheckResult(
     string LatestVersion,
     string ReleaseUrl,
     string? Error = null,
-    string? Warning = null)
+    string? Warning = null,
+    string? DownloadUrl = null,
+    string? ChecksumUrl = null,
+    string? AssetName = null)
 {
+    /// <summary>Release 同时提供了 exe 和 SHA256SUMS 时才走自动更新。</summary>
+    public bool CanAutoUpdate =>
+        Available &&
+        !string.IsNullOrWhiteSpace(DownloadUrl) &&
+        !string.IsNullOrWhiteSpace(ChecksumUrl) &&
+        !string.IsNullOrWhiteSpace(AssetName);
+
     public static UpdateCheckResult CreateSuccess(
         string currentVersion,
         string latestVersion,
-        string releaseUrl)
+        string releaseUrl,
+        string? downloadUrl = null,
+        string? checksumUrl = null,
+        string? assetName = null)
     {
         var current = ParseVersion(currentVersion);
         var latest = ParseVersion(latestVersion);
@@ -175,7 +278,10 @@ public sealed record UpdateCheckResult(
             current != null && latest != null && latest.CompareTo(current) > 0,
             currentVersion,
             latestVersion,
-            releaseUrl);
+            releaseUrl,
+            DownloadUrl: downloadUrl,
+            ChecksumUrl: checksumUrl,
+            AssetName: assetName);
     }
 
     public static UpdateCheckResult Failed(string error) =>

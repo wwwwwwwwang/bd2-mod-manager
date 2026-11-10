@@ -43,10 +43,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _incompleteLoader;
     private bool _updateAvailable;
     private bool _checkingUpdate;
+    private bool _installingUpdate;
     private bool _toastVisible;
     private string _updateStatus = "尚未检查更新";
     private string _toastText = "";
     private string _releaseUrl = "";
+    private UpdateCheckResult? _latestUpdate;
     private DispatcherTimer? _toastTimer;
 
     private string _busyText = "";
@@ -77,6 +79,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CloseSheetCommand = new RelayCommand(CloseSheet);
         CheckUpdateCommand = new RelayCommand(() => _ = CheckForUpdatesAsync(true));
         OpenUpdateCommand = new RelayCommand(OpenReleasePage);
+        InstallUpdateCommand = new RelayCommand(() => _ = InstallUpdateAsync());
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
         ConfirmCancelCommand = new RelayCommand(() => _confirm?.TrySetResult(false));
 
@@ -109,6 +112,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand CloseSheetCommand { get; }
     public ICommand CheckUpdateCommand { get; }
     public ICommand OpenUpdateCommand { get; }
+    public ICommand InstallUpdateCommand { get; }
     public ICommand ConfirmYesCommand { get; }
     public ICommand ConfirmCancelCommand { get; }
 
@@ -204,13 +208,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool UpdateAvailable
     {
         get => _updateAvailable;
-        private set => Set(ref _updateAvailable, value);
+        private set
+        {
+            if (Set(ref _updateAvailable, value)) OnPropertyChanged(nameof(CanAutoUpdate));
+        }
     }
 
     public bool IsCheckingUpdate
     {
         get => _checkingUpdate;
         private set => Set(ref _checkingUpdate, value);
+    }
+
+    /// <summary>当前 Release 同时有 exe 和 SHA256SUMS.txt 时才允许一键更新。</summary>
+    public bool CanAutoUpdate =>
+        UpdateAvailable && !IsInstallingUpdate && _latestUpdate?.CanAutoUpdate == true;
+
+    public bool IsInstallingUpdate
+    {
+        get => _installingUpdate;
+        private set
+        {
+            if (Set(ref _installingUpdate, value)) OnPropertyChanged(nameof(CanAutoUpdate));
+        }
     }
 
     public string UpdateStatus
@@ -340,7 +360,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task CheckForUpdatesAsync(bool manual)
     {
-        if (IsCheckingUpdate) return;
+        if (IsCheckingUpdate || IsInstallingUpdate) return;
 
         IsCheckingUpdate = true;
         if (manual)
@@ -363,22 +383,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return;
             }
 
+            _latestUpdate = result.Available ? result : null;
             UpdateAvailable = result.Available;
             _releaseUrl = result.ReleaseUrl;
-            UpdateStatus = result.Available
-                ? $"发现新版本 {result.LatestVersion}"
-                : $"已是最新版本 · {Version}";
+            OnPropertyChanged(nameof(CanAutoUpdate));
 
             if (result.Available)
             {
-                ShowToast($"发现新版本 {result.LatestVersion}");
+                UpdateStatus = result.CanAutoUpdate
+                    ? $"发现新版本 {result.LatestVersion} · 可一键更新"
+                    : $"发现新版本 {result.LatestVersion} · 请手动下载";
+                ShowToast(result.CanAutoUpdate
+                    ? $"发现新版本 {result.LatestVersion}，可立即更新"
+                    : $"发现新版本 {result.LatestVersion}");
                 Log($"发现新版本 {result.LatestVersion}：{result.ReleaseUrl}");
             }
-            else if (manual)
+            else
             {
-                ShowToast("已是最新版本");
-                Log("当前已是最新版本。");
+                UpdateStatus = $"已是最新版本 · {Version}";
+                if (manual)
+                {
+                    ShowToast("已是最新版本");
+                    Log("当前已是最新版本。");
+                }
             }
+
+            if (!string.IsNullOrWhiteSpace(result.Warning))
+                Log($"更新检查提示：{result.Warning}");
         }
         catch (Exception ex)
         {
@@ -411,6 +442,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ToastVisible = false;
         };
         _toastTimer.Start();
+    }
+
+    /// <summary>
+    /// 一键更新：下载最新 Release、校验 SHA256，然后替换当前 exe 并重启。
+    /// 没有校验文件或当前不是发布版时直接拒绝，避免把用户程序弄坏。
+    /// </summary>
+    private async Task InstallUpdateAsync()
+    {
+        var update = _latestUpdate;
+        if (update == null || !update.CanAutoUpdate || IsInstallingUpdate) return;
+
+        IsInstallingUpdate = true;
+        UpdateStatus = "正在下载更新…";
+        ShowToast("正在下载更新…");
+
+        try
+        {
+            var progress = new Progress<double>(value =>
+                UpdateStatus = $"正在下载更新… {value:P0}");
+
+            var downloaded = await AutoUpdater.DownloadAsync(update, progress);
+            UpdateStatus = "正在安装更新…";
+            AutoUpdater.ApplyAndRestart(downloaded);
+            Environment.Exit(0);
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = "自动更新失败，请手动下载";
+            Log($"自动更新失败：{ex.Message}");
+            ShowToast("自动更新失败，请手动下载");
+        }
+        finally
+        {
+            IsInstallingUpdate = false;
+        }
     }
 
     private void OpenReleasePage()

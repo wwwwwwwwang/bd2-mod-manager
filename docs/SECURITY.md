@@ -14,7 +14,7 @@ BD2ModManager 只做两件事：
 
 - **不修改游戏本体**：`BrownDust II.exe`、`BrownDust II_Data` 与存档都不碰。
 - **loader 完整性**：只有 `winhttp.dll`、`doorstop_config.ini`、`BepInEx/core/BepInEx.dll` 同时存在才算可用；不完整时走修复安装，不能只装插件。
-- **几乎不联网**：GUI / CLI / 内置插件运行时不发游戏数据；GUI 启动时可检查 GitHub Release 更新，只读取版本元数据，不下载或执行文件；loader 包只在构建阶段从官方 release 下载。
+- **几乎不联网**：GUI / CLI / 内置插件运行时不发游戏数据；GUI 启动时只读取 GitHub Release 版本元数据，用户点击「立即更新」后才下载官方 exe，并用 `SHA256SUMS.txt` 校验后替换重启；loader 包只在构建阶段从官方 release 下载。
 - **不删除来源不明的文件**：没有安装记录就不做通用卸载；残留清理也只碰已知的 loader 运行时产物。
 - **不收录闭源插件**：发布包只含本仓库代码与有再分发许可的开源组件。
 
@@ -140,6 +140,8 @@ ResidueOnly = Present && !CorePresent && HasTraces;
 | `BepInEx/cache`、`LogOutput.log*`、`BepInEx/config/*.cfg` | loader / 插件运行时生成 | 启动游戏后 |
 | `BepInEx/SkinUnlock.probe.log` | 内置插件诊断日志 | 启动游戏后 |
 | `%LOCALAPPDATA%\BD2ModManager\` | 安装记录、组件记录、被覆盖文件的备份、更新检查缓存 | 安装 / 组件 / 更新检查 |
+| `%TEMP%\BD2ModManager\updates\` | 下载的更新 exe | 点击「立即更新」 |
+| 程序目录 | `BD2ModManager.exe.old-<时间戳>` | 自动更新时备份旧版；新版启动后清理 |
 
 除上述位置与包解压用的临时目录外，本工具不写任何文件。
 
