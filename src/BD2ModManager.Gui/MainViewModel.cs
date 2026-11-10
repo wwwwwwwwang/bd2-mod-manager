@@ -553,17 +553,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var st = LoaderInspector.Inspect(_game, _store);
         var comps = _components.List(_game);
-        var hasUnlock = comps.Any(c => IsUnlockPlugin(c.Name)) ||
-                        st.Plugins.Any(p => IsUnlockPlugin(p.Name));
+        var hasManagedUnlock = comps.Any(c => IsUnlockPlugin(c.Name));
+        var hasLooseUnlock = st.Plugins.Any(p => IsUnlockPlugin(p.Name));
 
         LoaderPresent = st.CorePresent || st.IncompleteLoader;
         UsingExternalLoader = st.CorePresent && !st.ManagedByUs;
         IncompleteLoader = st.IncompleteLoader;
 
         _syncing = true;
-        // 开关跟着“内置解锁插件是否已安装”走，而不是只看 loader 核心。
-        // 已有第三方 BepInEx 时，打开开关只安装插件，不覆盖 loader。
-        ToggleOn = st.CorePresent && hasUnlock;
+        // 开关只跟“本工具组件目录里是否装了内置插件”走。
+        // 散落的同名 DLL 只提示、不冒充已启用，否则点关闭会找不到组件可删。
+        ToggleOn = st.CorePresent && hasManagedUnlock;
         _syncing = false;
 
         if (!st.CorePresent)
@@ -601,24 +601,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
         else if (st.ManagedByUs)
         {
             var door = string.IsNullOrWhiteSpace(st.DoorstopVersion) ? "" : $" · Doorstop {st.DoorstopVersion}";
-            StatusText = hasUnlock ? "已启用" : "已安装 loader";
+            StatusText = hasManagedUnlock ? "已启用" : "已安装 loader";
             StatusHint = $"BepInEx {st.BepInExVersion ?? "未知"}{door} · 本工具安装" +
-                         (hasUnlock ? "" : " · 未安装内置插件");
-            ToggleHint = hasUnlock
+                         (hasManagedUnlock
+                             ? ""
+                             : hasLooseUnlock
+                                 ? " · 检测到旧版散装插件"
+                                 : " · 未安装内置插件");
+            ToggleHint = hasManagedUnlock
                 ? "关闭会移除内置解锁插件和本工具安装的 loader，并还原被覆盖的原文件。"
-                : "打开会安装内置解锁插件，不会重装 loader。";
-            StatusBrush = hasUnlock ? Brush.Parse("#16A34A") : Brush.Parse("#D97706");
+                : "打开会安装或更新内置解锁插件，不会重装 loader。";
+            StatusBrush = hasManagedUnlock ? Brush.Parse("#16A34A") : Brush.Parse("#D97706");
+        }
+        else if (hasManagedUnlock)
+        {
+            StatusText = "已启用 · 现有 BepInEx";
+            StatusHint = "使用现有 BepInEx，仅管理内置解锁插件";
+            ToggleHint = "关闭只会移除内置解锁插件，不会卸载现有 BepInEx。";
+            StatusBrush = Brush.Parse("#16A34A");
+        }
+        else if (hasLooseUnlock)
+        {
+            StatusText = "已检测到旧版解锁插件";
+            StatusHint = "现有 BepInEx 中的 BD2SkinUnlock 不是本工具管理的版本";
+            ToggleHint = "打开会备份旧版散装插件并安装内置版本，不会覆盖现有 BepInEx。";
+            StatusBrush = Brush.Parse("#D97706");
         }
         else
         {
-            StatusText = hasUnlock ? "已启用 · 现有 BepInEx" : "已检测到 BepInEx";
-            StatusHint = hasUnlock
-                ? "使用现有 BepInEx，仅管理内置解锁插件"
-                : "现有 BepInEx 保留，可只安装内置解锁插件";
-            ToggleHint = hasUnlock
-                ? "关闭只会移除内置解锁插件，不会卸载现有 BepInEx。"
-                : "打开只会安装内置解锁插件，不会覆盖现有 BepInEx。";
-            StatusBrush = hasUnlock ? Brush.Parse("#16A34A") : Brush.Parse("#D97706");
+            StatusText = "已检测到 BepInEx";
+            StatusHint = "现有 BepInEx 保留，可只安装内置解锁插件";
+            ToggleHint = "打开只会安装内置解锁插件，不会覆盖现有 BepInEx。";
+            StatusBrush = Brush.Parse("#D97706");
         }
 
         ShowCleanResidue = st.ResidueOnly;
@@ -997,6 +1011,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return false;
         }
 
+        BackupLooseUnlockPlugin(game);
+
         var staging = Path.Combine(Path.GetTempPath(), "bd2mm-builtin-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -1015,6 +1031,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
         finally
         {
             try { Directory.Delete(staging, true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// 旧版本可能把 BD2SkinUnlock.dll 直接散落在 plugins 根目录。组件安装会拒绝同名不同内容的文件，
+    /// 所以先把它移到 .bak；只处理内置插件自己的文件名，不碰其他插件。
+    /// </summary>
+    private void BackupLooseUnlockPlugin(GameInstall game)
+    {
+        var pluginsDir = Path.Combine(game.Root, "BepInEx", "plugins");
+        if (!Directory.Exists(pluginsDir)) return;
+
+        foreach (var fileName in new[] { "BD2SkinUnlock.dll", "BD2SkinUnlock.dll.disabled" })
+        {
+            var path = Path.Combine(pluginsDir, fileName);
+            if (!File.Exists(path)) continue;
+
+            var backup = path + ".bak-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            try
+            {
+                File.Move(path, backup);
+                Log($"已备份旧版散装插件：{backup}");
+            }
+            catch (Exception ex)
+            {
+                Log($"备份旧版散装插件失败：{ex.Message}");
+            }
         }
     }
 
