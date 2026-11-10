@@ -46,6 +46,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _installingUpdate;
     private bool _toastVisible;
     private string _updateStatus = "尚未检查更新";
+    private string _updateDownloadDir = "";
     private string _toastText = "";
     private string _releaseUrl = "";
     private UpdateCheckResult? _latestUpdate;
@@ -64,6 +65,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _window = window;
         _installer = new LoaderInstaller(_store);
         _components = new ComponentManager(_store);
+        _updateDownloadDir = UpdatePreferences.LoadDownloadDirectory();
 
         RescanCommand = new RelayCommand(() => _ = RescanAsync());
         BrowseCommand = new RelayCommand(() => _ = BrowseAsync());
@@ -80,6 +82,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CheckUpdateCommand = new RelayCommand(() => _ = CheckForUpdatesAsync(true));
         OpenUpdateCommand = new RelayCommand(OpenReleasePage);
         InstallUpdateCommand = new RelayCommand(() => _ = InstallUpdateAsync());
+        PickUpdateDirCommand = new RelayCommand(() => _ = PickUpdateDirectoryAsync());
         ConfirmYesCommand = new RelayCommand(() => _confirm?.TrySetResult(true));
         ConfirmCancelCommand = new RelayCommand(() => _confirm?.TrySetResult(false));
 
@@ -113,6 +116,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand CheckUpdateCommand { get; }
     public ICommand OpenUpdateCommand { get; }
     public ICommand InstallUpdateCommand { get; }
+    public ICommand PickUpdateDirCommand { get; }
     public ICommand ConfirmYesCommand { get; }
     public ICommand ConfirmCancelCommand { get; }
 
@@ -238,6 +242,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => _updateStatus;
         private set => Set(ref _updateStatus, value);
     }
+
+    /// <summary>自动更新下载目录。空字符串表示首次更新时让用户选择。</summary>
+    public string UpdateDownloadDir
+    {
+        get => _updateDownloadDir;
+        private set
+        {
+            if (!Set(ref _updateDownloadDir, value)) return;
+            OnPropertyChanged(nameof(UpdateDownloadDirText));
+        }
+    }
+
+    public string UpdateDownloadDirText => string.IsNullOrWhiteSpace(_updateDownloadDir)
+        ? "下载到：未选择（首次更新时选择）"
+        : $"下载到：{_updateDownloadDir}";
 
     public bool ToastVisible
     {
@@ -444,9 +463,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _toastTimer.Start();
     }
 
+    private async Task<string?> ChooseUpdateDirectoryAsync()
+    {
+        var folders = await _window.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "选择更新包下载目录（任意可写目录，不会使用 C 盘临时目录）",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0) return null;
+        var path = folders[0].TryGetLocalPath();
+        return string.IsNullOrWhiteSpace(path) ? null : path;
+    }
+
+    private async Task PickUpdateDirectoryAsync()
+    {
+        if (IsInstallingUpdate) return;
+
+        var path = await ChooseUpdateDirectoryAsync();
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        UpdateDownloadDir = path;
+        UpdatePreferences.SaveDownloadDirectory(path);
+        Log($"更新包下载目录：{path}");
+    }
+
     /// <summary>
     /// 一键更新：下载最新 Release、校验 SHA256，然后替换当前 exe 并重启。
     /// 没有校验文件或当前不是发布版时直接拒绝，避免把用户程序弄坏。
+    /// 下载目录由用户选择并记住；未选择时先弹出目录选择器。
     /// </summary>
     private async Task InstallUpdateAsync()
     {
@@ -454,15 +499,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (update == null || !update.CanAutoUpdate || IsInstallingUpdate) return;
 
         IsInstallingUpdate = true;
-        UpdateStatus = "正在下载更新…";
-        ShowToast("正在下载更新…");
+        UpdateStatus = "请选择更新包下载目录…";
 
         try
         {
+            var directory = UpdateDownloadDir;
+            if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+            {
+                UpdateStatus = "上次的下载目录不存在，请重新选择";
+                directory = "";
+            }
+
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                directory = await ChooseUpdateDirectoryAsync();
+                if (string.IsNullOrWhiteSpace(directory))
+                {
+                    UpdateStatus = "已取消更新";
+                    return;
+                }
+
+                UpdateDownloadDir = directory;
+                UpdatePreferences.SaveDownloadDirectory(directory);
+                Log($"更新包下载目录：{directory}");
+            }
+
+            UpdateStatus = "正在下载更新…";
+            ShowToast("正在下载更新…");
+
             var progress = new Progress<double>(value =>
                 UpdateStatus = $"正在下载更新… {value:P0}");
 
-            var downloaded = await AutoUpdater.DownloadAsync(update, progress);
+            var downloaded = await AutoUpdater.DownloadAsync(update, directory, progress);
             UpdateStatus = "正在安装更新…";
             AutoUpdater.ApplyAndRestart(downloaded);
             Environment.Exit(0);

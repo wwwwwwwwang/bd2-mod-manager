@@ -14,15 +14,23 @@ public static class AutoUpdater
 
     public static async Task<string> DownloadAsync(
         UpdateCheckResult update,
+        string targetDirectory,
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (!update.CanAutoUpdate)
             throw new InvalidOperationException("这个 Release 没有提供可自动更新的 exe 或校验文件。");
+        if (string.IsNullOrWhiteSpace(targetDirectory))
+            throw new InvalidOperationException("请先选择更新包下载目录。");
 
-        var dir = Path.Combine(Path.GetTempPath(), "BD2ModManager", "updates");
+        var dir = Path.GetFullPath(targetDirectory);
         Directory.CreateDirectory(dir);
-        var target = Path.Combine(dir, update.AssetName!);
+
+        var assetName = Path.GetFileName(update.AssetName!);
+        if (!string.Equals(assetName, update.AssetName, StringComparison.Ordinal))
+            throw new InvalidOperationException("更新包文件名不合法。");
+
+        var target = Path.Combine(dir, assetName);
         if (File.Exists(target)) File.Delete(target);
 
         using var response = await Http.GetAsync(
