@@ -420,6 +420,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     : $"发现新版本 {result.LatestVersion}");
                 Log($"发现新版本 {result.LatestVersion}：{result.ReleaseUrl}");
             }
+            else if (result.IsFromCache)
+            {
+                UpdateStatus = $"检查失败，使用上次结果 · {result.LatestVersion}";
+                if (manual) ShowToast("更新检查失败，请稍后重试");
+            }
             else
             {
                 UpdateStatus = $"已是最新版本 · {Version}";

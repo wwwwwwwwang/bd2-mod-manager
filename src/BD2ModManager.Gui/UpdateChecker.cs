@@ -6,7 +6,7 @@ namespace BD2ModManager.Gui;
 
 /// <summary>
 /// 轻量更新检查：只读 GitHub Release 元数据，不下载、不执行任何文件。
-/// 每次启动都请求一次；网络失败时回退到最近一次成功结果。
+/// 每次启动都请求一次；API 失败时先用发布页重定向兜底，最后才回退缓存。
 /// </summary>
 public static class UpdateChecker
 {
@@ -17,6 +17,7 @@ public static class UpdateChecker
         "https://github.com/wwwwwwwwang/bd2-mod-manager/releases/latest";
 
     private static readonly HttpClient Http = CreateClient();
+    private static readonly HttpClient RedirectHttp = CreateRedirectClient();
 
     public static async Task<UpdateCheckResult> CheckAsync(
         string currentVersion,
@@ -35,8 +36,17 @@ public static class UpdateChecker
             using var response = await Http.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
+                var fallback = await CheckViaReleasePageAsync(
+                    currentVersion, $"GitHub API 返回 {(int)response.StatusCode}", cancellationToken);
+                if (fallback != null)
+                {
+                    WriteCache(fallback);
+                    return fallback;
+                }
+
                 return cache != null
-                    ? FromCache(cache, currentVersion, $"GitHub API 返回 {(int)response.StatusCode}")
+                    ? FromCache(cache, currentVersion,
+                        $"GitHub API 返回 {(int)response.StatusCode}，且发布页检查失败")
                     : UpdateCheckResult.Failed($"GitHub API 返回 {(int)response.StatusCode}");
             }
 
@@ -75,9 +85,59 @@ public static class UpdateChecker
         }
         catch (Exception ex)
         {
+            var fallback = await CheckViaReleasePageAsync(currentVersion, ex.Message, cancellationToken);
+            if (fallback != null)
+            {
+                WriteCache(fallback);
+                return fallback;
+            }
+
             return cache != null
-                ? FromCache(cache, currentVersion, ex.Message)
+                ? FromCache(cache, currentVersion, $"{ex.Message}，且发布页检查失败")
                 : UpdateCheckResult.Failed(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// GitHub API 有匿名额度限制，额度用完会返回 403；发布页的 /releases/latest
+    /// 会 302 到当前最新 tag，不消耗 API 额度。用它作为 API 失败时的兜底。
+    /// </summary>
+    private static async Task<UpdateCheckResult?> CheckViaReleasePageAsync(
+        string currentVersion,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesPage);
+            using var response = await RedirectHttp.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var location = response.Headers.Location;
+            if (location == null) return null;
+
+            var uri = location.IsAbsoluteUri
+                ? location
+                : new Uri(new Uri(ReleasesPage), location.OriginalString);
+            const string marker = "/releases/tag/";
+            var index = uri.AbsolutePath.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (index < 0) return null;
+
+            var tag = Uri.UnescapeDataString(uri.AbsolutePath[(index + marker.Length)..]).Trim('/');
+            if (string.IsNullOrWhiteSpace(tag)) return null;
+            var latest = NormalizeVersion(tag);
+            if (latest == null) return null;
+
+            var assets = BuildFallbackAssets(latest, tag);
+            var releaseUrl =
+                $"https://github.com/wwwwwwwwang/bd2-mod-manager/releases/tag/{tag}";
+            var result = UpdateCheckResult.CreateSuccess(
+                currentVersion, latest, releaseUrl,
+                assets.DownloadUrl, assets.ChecksumUrl, assets.AssetName);
+            return result with { Warning = $"GitHub API 不可用（{reason}），已通过发布页检查" };
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -159,7 +219,15 @@ public static class UpdateChecker
 
     private static HttpClient CreateClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("BD2ModManager/update-check");
+        return client;
+    }
+
+    private static HttpClient CreateRedirectClient()
+    {
+        var handler = new HttpClientHandler { AllowAutoRedirect = false };
+        var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(12) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("BD2ModManager/update-check");
         return client;
     }
@@ -177,7 +245,7 @@ public static class UpdateChecker
             string.IsNullOrWhiteSpace(cache.DownloadUrl) ? fallback.DownloadUrl : cache.DownloadUrl,
             string.IsNullOrWhiteSpace(cache.ChecksumUrl) ? fallback.ChecksumUrl : cache.ChecksumUrl,
             string.IsNullOrWhiteSpace(cache.AssetName) ? fallback.AssetName : cache.AssetName);
-        return warning == null ? result : result with { Warning = warning };
+        return result with { Warning = warning, IsFromCache = true };
     }
 
     private static UpdateCache? ReadCache()
@@ -262,6 +330,9 @@ public sealed record UpdateCheckResult(
         !string.IsNullOrWhiteSpace(DownloadUrl) &&
         !string.IsNullOrWhiteSpace(ChecksumUrl) &&
         !string.IsNullOrWhiteSpace(AssetName);
+
+    /// <summary>本次结果来自上次成功检查的缓存，不是当前网络查询。</summary>
+    public bool IsFromCache { get; init; }
 
     public static UpdateCheckResult CreateSuccess(
         string currentVersion,
