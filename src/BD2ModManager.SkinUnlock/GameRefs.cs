@@ -5,6 +5,14 @@ using System.Reflection;
 
 namespace Suiren.BD2.SkinUnlock
 {
+    /// <summary>设计表查询的三种结果。查询抛异常时是「不可用」，绝不能当成「缺行」。</summary>
+    internal enum TableRowStatus
+    {
+        Found,
+        Missing,
+        Unavailable,
+    }
+
     /// <summary>
     /// 游戏内部结构的反射视图。
     ///
@@ -545,12 +553,32 @@ namespace Suiren.BD2.SkinUnlock
         internal IDictionary GetCostumeDict() => SafeGet(CostumeDict);
         internal IDictionary GetItemDict() => SafeGet(ItemDict);
 
-        /// <summary>该 designId 在皮肤设计表里是否有对应行。</summary>
-        internal bool InTable(int designId)
+        /// <summary>
+        /// 账号数据是否已经下发。登出后服装字典会被游戏清空，
+        /// 此时任何数据库读取都可能触发「db is not loaded」，插件必须停手等下一次登录。
+        /// </summary>
+        internal bool HasAccountData()
         {
-            if (GetTableRow == null || designId == 0) return false;
-            try { return GetTableRow.Invoke(null, new object[] { designId }) != null; }
-            catch { return false; }
+            var costumes = GetCostumeDict();
+            return costumes != null && costumes.Count > 0;
+        }
+
+        /// <summary>查询设计表行；查询失败时保留「不可用」，不能把它当成缺行。</summary>
+        internal TableRowStatus LookupTableRow(int designId, out object row)
+        {
+            row = null;
+            if (designId == 0) return TableRowStatus.Missing;
+            if (GetTableRow == null) return TableRowStatus.Unavailable;
+
+            try
+            {
+                row = GetTableRow.Invoke(null, new object[] { designId });
+                return row == null ? TableRowStatus.Missing : TableRowStatus.Found;
+            }
+            catch
+            {
+                return TableRowStatus.Unavailable;
+            }
         }
 
         private static IDictionary SafeGet(FieldInfo f)

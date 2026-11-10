@@ -32,9 +32,8 @@ namespace Suiren.BD2.SkinUnlock
             if (Ready) return true;
             if (r == null || !r.Ready) return false;
 
-            // 服装字典还没被游戏填满，说明数据尚未下发
-            var costumes = r.GetCostumeDict();
-            if (costumes == null || costumes.Count == 0) return false;
+            // 服装字典还没被游戏填满，说明数据尚未下发（或已经登出）
+            if (!r.HasAccountData()) return false;
 
             try
             {
@@ -60,8 +59,13 @@ namespace Suiren.BD2.SkinUnlock
                         if (row is int id)
                         {
                             designId = id;
-                            var line = r.GetTableRow.Invoke(null, new object[] { designId });
-                            if (line == null) continue;
+                            if (designId == 0) continue;   // 0 不是合法行，别拿它去查表
+
+                            var status = r.LookupTableRow(designId, out var line);
+                            if (status == TableRowStatus.Unavailable)
+                                return WarnOnce(ref _attempts, "皮肤设计表暂不可用", warn);
+                            if (status == TableRowStatus.Missing) continue;
+
                             costumeId = Convert.ToInt32(r.TableCostumeId.GetValue(line, null));
                         }
                         else

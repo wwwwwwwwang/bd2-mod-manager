@@ -97,7 +97,10 @@ namespace Proto.Design.common
         public int Type { get; set; }
 
         public static List<LobbySettingItemTable> GetAllLobbySettingItems()
-            => FakeGame.Database.LobbyItems;
+        {
+            FakeGame.Database.LobbyCalls++;
+            return FakeGame.Database.LobbyItems;
+        }
     }
 }
 
@@ -118,6 +121,9 @@ namespace FakeGame
 
         public IList GetTableOfIds(TableKind kind, string tableName)
         {
+            if (!Database.IsLoaded)
+                throw new InvalidOperationException("Data not found exception. (common, id:0) - db is not loaded");
+
             if (kind != TableKind.DB_COMMON || tableName != "PrestigeSkinTable")
                 return new List<int>();
 
@@ -146,8 +152,17 @@ namespace FakeGame
 
         public static List<int> DesignIds { get; } = new List<int>();
 
+        /// <summary>设计表行 getter 每次被查询的 designId，用来证明 0 不会被拿去查表。</summary>
+        public static List<int> TableRowLookupIds { get; } = new List<int>();
+
+        /// <summary>模拟登出/登录期间的数据库状态。卸载时 getter 会像游戏一样抛错。</summary>
+        public static bool IsLoaded = true;
+
         /// <summary>原方法被真正执行的次数。补丁生效时它应该保持 0。</summary>
         public static int SetSkinCalls;
+
+        /// <summary>大厅表被读取的次数，用来证明登出后插件不再碰数据库。</summary>
+        public static int LobbyCalls;
 
         public static void Reset()
         {
@@ -159,7 +174,10 @@ namespace FakeGame
             SkinExchangePopupUI.Reset();
             Rows.Clear();
             DesignIds.Clear();
+            TableRowLookupIds.Clear();
+            IsLoaded = true;
             SetSkinCalls = 0;
+            LobbyCalls = 0;
         }
 
         public static void AddSkinRow(int designId, int costumeId)
@@ -169,7 +187,15 @@ namespace FakeGame
         }
 
         public static PrestigeSkinTable FindRow(int designId)
-            => Rows.TryGetValue(designId, out var row) ? row : null;
+        {
+            TableRowLookupIds.Add(designId);
+
+            if (!IsLoaded)
+                throw new InvalidOperationException(
+                    $"Data not found exception. (common, id:{designId}) - db is not loaded");
+
+            return Rows.TryGetValue(designId, out var row) ? row : null;
+        }
 
         /// <summary>
         /// 原版行为：只返回「玩家买过的」皮肤。刻意不看 SkinDict ——
