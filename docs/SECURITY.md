@@ -139,8 +139,8 @@ ResidueOnly = Present && !CorePresent && HasTraces;
 | `BepInEx/plugins/<组件名>/**` | 使用者自己提供的插件 | 安装组件 |
 | `BepInEx/cache`、`LogOutput.log*`、`BepInEx/config/*.cfg` | loader / 插件运行时生成 | 启动游戏后 |
 | `BepInEx/SkinUnlock.probe.log` | 内置插件诊断日志 | 启动游戏后 |
-| `%LOCALAPPDATA%\BD2ModManager\` | 安装记录、组件记录、被覆盖文件的备份、更新检查缓存 | 安装 / 组件 / 更新检查 |
-| `%TEMP%\BD2ModManager\updates\` | 下载的更新 exe | 点击「立即更新」 |
+| `%LOCALAPPDATA%\BD2ModManager\` | 安装记录、组件记录、被覆盖文件的备份、更新检查缓存、更新下载目录设置 | 安装 / 组件 / 更新检查 |
+| 用户选择的更新下载目录 | 下载的更新 exe | 点击「立即更新」 |
 | 程序目录 | `BD2ModManager.exe.old-<时间戳>` | 自动更新时备份旧版；新版启动后清理 |
 
 除上述位置与包解压用的临时目录外，本工具不写任何文件。
