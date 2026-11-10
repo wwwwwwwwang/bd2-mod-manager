@@ -273,9 +273,13 @@
                 <Button Classes="link" Content="检查"
                         Command="{Binding CheckUpdateCommand}"
                         IsEnabled="{Binding !IsCheckingUpdate}" />
-                <Button Classes="link" Content="下载"
+                <Button Classes="link" Content="立即更新"
+                        Command="{Binding InstallUpdateCommand}"
+                        IsVisible="{Binding CanAutoUpdate}" />
+                <Button Classes="link" Content="手动下载"
                         Command="{Binding OpenUpdateCommand}"
-                        IsVisible="{Binding UpdateAvailable}" />
+                        IsVisible="{Binding UpdateAvailable}"
+                        IsEnabled="{Binding !IsInstallingUpdate}" />
               </StackPanel>
             </Grid>
           </Border>

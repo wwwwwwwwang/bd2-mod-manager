@@ -171,7 +171,8 @@ GUI：用户选择目录；CLI：也可以直接传 .zip
 | `App.axaml` / `App.axaml.cs` | 应用入口、主题与资源 |
 | `MainWindow.axaml` / `.axaml.cs` | 布局、绑定、日志滚动、确认框 |
 | `MainViewModel.cs` | 状态、命令、异步操作、日志、探测与刷新 |
-| `UpdateChecker.cs` | GitHub Release 版本检查，启动时请求，网络失败回退缓存，只读不下载 |
+| `UpdateChecker.cs` | GitHub Release 版本检查，启动时请求，网络失败回退缓存，只读元数据 |
+| `AutoUpdater.cs` | 下载官方 exe、校验 SHA256、替换当前程序并重启 |
 | `Commands.cs` | `RelayCommand`、`PluginItem`、`ComponentItem` 等绑定对象 |
 
 GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时操作走异步，UI 线程只负责绑定更新。

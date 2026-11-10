@@ -12,6 +12,9 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // 上一次自动更新留下的 BD2ModManager.exe.old 在这里清掉。
+            AutoUpdater.CleanupOldFiles();
+
             var window = new MainWindow();
             var vm = new MainViewModel(window);
             window.DataContext = vm;
