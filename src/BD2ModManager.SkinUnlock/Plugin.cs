@@ -26,7 +26,7 @@ namespace Suiren.BD2.SkinUnlock
     public sealed class SkinUnlockPlugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.suiren.bd2.skinunlock";
-        public const string Version = "1.1.1";
+        public const string Version = "1.1.2";
 
         private static ManualLogSource _log;
 
