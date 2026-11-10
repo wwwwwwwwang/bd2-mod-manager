@@ -147,6 +147,10 @@ namespace Suiren.BD2.SkinUnlock
         {
             if (r == null || !r.Ready) return 0;
 
+            // 登出后账号数据被清空，皮肤字典里的条目也已经不再属于当前会话；
+            // 这时去查设计表只会在游戏里触发「db is not loaded」。
+            if (!r.HasAccountData()) return 0;
+
             var dict = r.GetSkinDict();
             if (dict == null || dict.Count == 0) return 0;
 
@@ -157,7 +161,19 @@ namespace Suiren.BD2.SkinUnlock
                 try
                 {
                     var designId = Convert.ToInt32(r.SkinDesignId.GetValue(e.Value, null));
-                    if (designId == 0 || !r.InTable(designId)) doomed.Add(e.Key);
+                    if (designId == 0)
+                    {
+                        doomed.Add(e.Key);
+                        continue;
+                    }
+
+                    var status = r.LookupTableRow(designId, out _);
+
+                    // 数据表正在卸载或重载：这一轮什么都不能删。
+                    // 把异常当成「缺行」会误删玩家的正常皮肤，登出时尤其危险。
+                    if (status == TableRowStatus.Unavailable) return 0;
+
+                    if (status == TableRowStatus.Missing) doomed.Add(e.Key);
                 }
                 catch { }
             }

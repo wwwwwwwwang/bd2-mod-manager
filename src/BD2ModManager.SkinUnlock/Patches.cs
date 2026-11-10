@@ -190,6 +190,10 @@ namespace Suiren.BD2.SkinUnlock
             var cat = Catalog;
             if (r == null || !r.Ready || cat == null) return;
 
+            // 登出后游戏已经清空账号数据，这里再去查设计表会把
+            // 「db is not loaded」直接抛进游戏自己的错误处理里。
+            if (!r.HasAccountData()) return;
+
             // 目录没建好就现场建：这个补丁是游戏在查皮肤列表时调进来的，
             // 此刻设计表一定已经下发，比等定时器靠谱。
             if (!cat.Ready && !(EnsureCatalog?.Invoke() ?? false)) return;
@@ -213,7 +217,12 @@ namespace Suiren.BD2.SkinUnlock
                     catch { cleaned.Add(item); continue; }
 
                     // 默认皮肤（0）和表里没有的条目一律不返回
-                    if (designId == 0 || !r.InTable(designId)) continue;
+                    var status = r.LookupTableRow(designId, out _);
+
+                    // 数据表暂不可用（例如登出时正在卸载）：保持原结果，
+                    // 不能因为一次查询异常把玩家的皮肤列表清空。
+                    if (status == TableRowStatus.Unavailable) return;
+                    if (status == TableRowStatus.Missing) continue;
 
                     cleaned.Add(item);
                 }
@@ -270,11 +279,22 @@ namespace Suiren.BD2.SkinUnlock
             var r = Refs;
             if (r == null || !r.Ready) return true;
 
+            // 登出期间不要为了判定「这行存不存在」去碰数据库，直接交还原方法。
+            if (!r.HasAccountData()) return true;
+
             try
             {
                 var designId = Convert.ToInt32(r.SkinDesignId.GetValue(__0, null));
                 if (designId == 0) return false;
-                if (r.GetTableRow != null && !r.InTable(designId)) return false;
+
+                if (r.GetTableRow != null)
+                {
+                    var status = r.LookupTableRow(designId, out _);
+
+                    // 表查询失败时交还原方法：宁可多写一条，也别丢掉服务端下发的数据。
+                    if (status == TableRowStatus.Unavailable) return true;
+                    if (status == TableRowStatus.Missing) return false;
+                }
             }
             catch (Exception e)
             {

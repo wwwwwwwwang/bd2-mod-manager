@@ -24,6 +24,11 @@ namespace Suiren.BD2.SkinUnlock
         internal static int Inject(GameRefs r)
         {
             if (r == null || !r.Ready) return 0;
+
+            // 登出过程中 GetAllLobbySettingItems 会读已卸载的数据库，
+            // 游戏会在插件 catch 到异常之前就把「db is not loaded」报出来。
+            if (!r.HasAccountData()) return 0;
+
             if (r.ItemDict == null || r.ItemType == null || r.ItemId == null) return 0;
             if (r.GetAllLobbyItems == null || r.LobbySkinId == null || r.LobbyId == null) return 0;
 

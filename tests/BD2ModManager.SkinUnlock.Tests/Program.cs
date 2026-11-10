@@ -57,6 +57,9 @@ internal static class Program
         Database.AddSkinRow(2003, 1001);
         Database.AddSkinRow(2004, 1002);
 
+        // 真实数据里 ID 列表可能混入 0；目录构建不能拿 0 去查设计表
+        Database.DesignIds.Add(0);
+
         // 玩家拥有这两件服装，但只买过 2001 这一套
         var costume1 = new CostumeDBInfo { Id = 1001, DesignId = 2001 };
         costume1.OwnedDesigns.Add(2001);
@@ -99,6 +102,7 @@ internal static class Program
         }
         Eq(catalog.SkinCount, 4, "读到 4 套皮肤");
         Eq(catalog.CostumeCount, 2, "覆盖 2 件服装");
+        Check(!Database.TableRowLookupIds.Contains(0), "designId=0 没有被拿去查设计表");
 
         // ------------------------------------------------------------ 3. 注入
 
@@ -298,6 +302,56 @@ internal static class Program
         Check(!Wrote(9999), "设计表里没有的皮肤被拦下");
         Check(Wrote(2003), "设计表里有的皮肤正常写入");
         Database.SkinDict.Remove(2003);        // 还原本步的影响
+
+        // ------------------------------------------------------------ 9.5 数据库卸载（登出）
+
+        Console.WriteLine("9.5 数据库暂不可用（登出）");
+
+        // 模拟登出：设计表 getter 像游戏一样抛「db is not loaded」
+        Database.IsLoaded = false;
+
+        var offlineCleaner = new SkinState();
+        var offlineBefore = Database.SkinDict.Count;
+        Eq(offlineCleaner.CleanupInvalid(refs), 0, "数据库不可用时不做清理");
+        Eq(Database.SkinDict.Count, offlineBefore, "数据库不可用时没有删掉任何条目");
+
+        var offlineList = new List<PrestigeSkinDBInfo> { Database.SkinDict[2001] };
+        var offlineArgs = new object[] { costume1, offlineList };
+        postfixMethod.Invoke(null, offlineArgs);
+        Check(ReferenceEquals(offlineArgs[1], offlineList) && offlineList.Count == 1,
+            "数据库不可用时保留原皮肤列表");
+
+        var offlineAdd = new PrestigeSkinDBInfo { CostumeId = 1001, CostumeDesignId = 2001 };
+        Check((bool)addSkinPrefix.Invoke(null, new object[] { offlineAdd }),
+            "数据库不可用时交还原方法写入");
+
+        var retryCatalog = new SkinCatalog();
+        Check(!retryCatalog.TryBuild(refs, _ => { }, _ => { }), "数据库不可用时目录构建失败");
+        Database.IsLoaded = true;
+        Check(retryCatalog.TryBuild(refs, _ => { }, _ => { }), "数据库恢复后目录重试成功");
+
+        // 真正的登出会先清空账号数据；此时连数据库都不该碰
+        var savedCostumes = new Dictionary<long, CostumeDBInfo>(Database.CostumeDict);
+        Database.CostumeDict.Clear();
+        Check(!refs.HasAccountData(), "服装字典为空时视为已登出");
+
+        var lobbyCalls = Database.LobbyCalls;
+        Database.LobbyItems.Add(new LobbySettingItemTable { Id = 5003, PrestigeSkinId = 2002, Type = 3 });
+        Eq(InteractionScenes.Inject(refs), 0, "账号数据为空时不补大厅场景");
+        Eq(Database.LobbyCalls, lobbyCalls, "账号数据为空时连大厅表都不读");
+        Database.LobbyItems.Clear();
+
+        var stayList = new List<PrestigeSkinDBInfo> { Database.SkinDict[2001] };
+        var stayArgs = new object[] { costume1, stayList };
+        postfixMethod.Invoke(null, stayArgs);
+        Check(ReferenceEquals(stayArgs[1], stayList) && stayList.Count == 1,
+            "账号数据为空时保留原皮肤列表");
+
+        Check((bool)addSkinPrefix.Invoke(null, new object[] { offlineAdd }),
+            "账号数据为空时交还原方法写入");
+
+        foreach (var kv in savedCostumes) Database.CostumeDict[kv.Key] = kv.Value;
+        Check(refs.HasAccountData(), "服装恢复后重新视为已登录");
 
         // ------------------------------------------------------------ 10. 大厅互动场景
 

@@ -314,6 +314,10 @@ namespace Suiren.BD2.SkinUnlock
         {
             try
             {
+                // 登出/换号时账号数据先被清空，随后数据库卸载。
+                // 这一拍什么都不做，等下一次登录的数据下发后自然恢复。
+                if (!_refs.HasAccountData()) return;
+
                 var injected = _state.EnsureInjected(_refs, _catalog);
                 if (injected > 0)
                 {
