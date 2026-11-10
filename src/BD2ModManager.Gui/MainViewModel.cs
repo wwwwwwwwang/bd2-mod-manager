@@ -65,7 +65,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _window = window;
         _installer = new LoaderInstaller(_store);
         _components = new ComponentManager(_store);
-        _updateDownloadDir = UpdatePreferences.LoadDownloadDirectory();
+        var savedUpdateDir = UpdatePreferences.LoadDownloadDirectory();
+        _updateDownloadDir = !string.IsNullOrWhiteSpace(savedUpdateDir) && Directory.Exists(savedUpdateDir)
+            ? savedUpdateDir
+            : UpdatePreferences.DefaultDownloadDirectory;
 
         RescanCommand = new RelayCommand(() => _ = RescanAsync());
         BrowseCommand = new RelayCommand(() => _ = BrowseAsync());
@@ -243,7 +246,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set => Set(ref _updateStatus, value);
     }
 
-    /// <summary>自动更新下载目录。空字符串表示首次更新时让用户选择。</summary>
+    /// <summary>自动更新下载目录。默认程序所在目录，用户可以改成其他可写目录。</summary>
     public string UpdateDownloadDir
     {
         get => _updateDownloadDir;
@@ -255,7 +258,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public string UpdateDownloadDirText => string.IsNullOrWhiteSpace(_updateDownloadDir)
-        ? "下载到：未选择（首次更新时选择）"
+        ? $"下载到：{UpdatePreferences.DefaultDownloadDirectory}"
         : $"下载到：{_updateDownloadDir}";
 
     public bool ToastVisible
@@ -491,7 +494,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>
     /// 一键更新：下载最新 Release、校验 SHA256，然后替换当前 exe 并重启。
     /// 没有校验文件或当前不是发布版时直接拒绝，避免把用户程序弄坏。
-    /// 下载目录由用户选择并记住；未选择时先弹出目录选择器。
+    /// 下载目录默认程序所在目录；用户可以在更新区改成其他可写目录。
     /// </summary>
     private async Task InstallUpdateAsync()
     {
@@ -499,26 +502,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (update == null || !update.CanAutoUpdate || IsInstallingUpdate) return;
 
         IsInstallingUpdate = true;
-        UpdateStatus = "请选择更新包下载目录…";
+        UpdateStatus = "正在准备更新…";
 
         try
         {
             var directory = UpdateDownloadDir;
-            if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
             {
-                UpdateStatus = "上次的下载目录不存在，请重新选择";
-                directory = "";
-            }
-
-            if (string.IsNullOrWhiteSpace(directory))
-            {
-                directory = await ChooseUpdateDirectoryAsync();
-                if (string.IsNullOrWhiteSpace(directory))
-                {
-                    UpdateStatus = "已取消更新";
-                    return;
-                }
-
+                directory = UpdatePreferences.DefaultDownloadDirectory;
                 UpdateDownloadDir = directory;
                 UpdatePreferences.SaveDownloadDirectory(directory);
                 Log($"更新包下载目录：{directory}");
@@ -537,9 +528,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            UpdateStatus = "自动更新失败，请手动下载";
+            UpdateStatus = "自动更新失败，请换一个可写目录或手动下载";
             Log($"自动更新失败：{ex.Message}");
-            ShowToast("自动更新失败，请手动下载");
+            ShowToast("自动更新失败，请换一个可写目录或手动下载");
         }
         finally
         {

@@ -17,6 +17,10 @@ internal sealed class UpdatePreferences
 
     public string? DownloadDirectory { get; set; }
 
+    /// <summary>没有保存过选择时，默认把更新包放在程序所在目录。</summary>
+    public static string DefaultDownloadDirectory =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(AppContext.BaseDirectory));
+
     private static string SettingsPath =>
         Path.Combine(new StateStore().BaseDir, "update-settings.json");
 
