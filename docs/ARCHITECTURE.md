@@ -188,6 +188,35 @@ GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时
 5. **日志高度取行高整数倍**：当前抽屉里的 `ListBox` 高 216 = 12 × 18；边框与内边距放在外层 `Border`，否则视口会出现非整数倍，滚到底时上下各露半行。
 6. **滚动只滚日志列表内部的 `ScrollViewer`**：`ScrollToEnd()` 在后台优先级执行，不碰光标与选区。
 
+### 首次启动与功能模块
+
+首次启动或免责声明版本变化时，`App` 先显示 `DisclaimerWindow`：用户必须勾选同意才能进入主窗口，否则进程退出。勾选结果与模块开关保存在 `%LOCALAPPDATA%\BD2ModManager\modules.ini`（`ModuleSettings`），不写游戏目录。
+
+主界面「功能模块」按钮打开 `ModulesWindow`；从关闭改为开启高风险模块（心契之约实验、全服装/全情缘/全角色本地镜像）时会再弹出 `RiskConfirmation` 二次确认。插件读取同一份 `modules.ini` 的 `[modules]` 段，每轮巡检重新加载，因此改开关不需要重启游戏；BepInEx 的 cfg 只保留低层参数。主程序也遵守 `Diagnostics`/`AutoUpdate`：关闭后诊断包按钮不可用、启动时不再自动检查更新，手动检查更新仍保留。
+
+### 诊断包（Diagnostics）
+
+`Core/Diagnostics.Export(game, store, options)` 只读采集，不打游戏文件、插件 DLL 或存档：
+
+- `report.txt`：版本、系统、游戏与 loader 状态、插件/组件清单、配置与日志文件名、自动检查结论。
+- `summary.json`：同一批数据的机器可读版本，便于 issue 模板或后续工具消费。
+- `configs/`：`BepInEx/config/*.cfg` 与 `doorstop_config.ini`（单文件上限 512 KB）。
+- `logs/`：`LogOutput.log*` 与 `SkinUnlock.probe.log` 的末尾（默认 200 行 / 256 KB）。
+
+导出时把状态目录、用户目录和用户名替换为 `%APPDATA%`、`%USERPROFILE%`、`%USER%`，可直接附在公开 issue。自动检查覆盖：loader 是否完整/仅残留、是否有多个解锁插件、插件同名多份、日志末尾是否命中异常关键字、`BepInEx.cfg` 是否尚未生成。
+
+GUI 的入口在「目录与环境」抽屉（清理残留按钮右侧）；CLI 为 `bd2mm diag [游戏目录] [--out 目录]`。
+
+### 插件独立更新（PluginUpdate）
+
+插件与主程序分开发版。主程序更新仍走 GitHub Release 的整包 exe；插件只更新 `BD2SkinUnlock.dll`，不重新下载 GUI。
+
+- `Core/PluginUpdate.cs` 读取 `plugin/plugin.json`（`version/url/sha256/size/minAppVersion`），只接受 HTTPS 与 64 位 SHA256。
+- `PluginUpdater.DownloadAsync` 下载到 `%LOCALAPPDATA%\BD2ModManager\plugin-update\pending-<version>\`，先写 `.download`，校验 SHA256 与大小后原子改名；最大 32 MB。
+- `PluginUpdater.Apply` 在游戏运行时只保留 pending，提示退出后再装；游戏未运行时调用 `ComponentManager.ReplaceFile`，只替换安装记录里哈希仍匹配的 `BD2SkinUnlock.dll`，先备份到 `plugin-update/backup/`，失败尝试还原。
+- GUI 在更新卡里显示「插件更新」行；启动时自动检查（受 `AutoUpdate` 总开关约束），也可手动检查/安装。程序重启后 `TryGetPending` 会恢复已下载状态。
+- 清单与构建：`plugin/plugin.json` 是当前基线；`.github/workflows/plugin-release.yml` 在 `plugin-v*` tag 构建 Release DLL、生成清单和 `SHA256SUMS.txt` 并上传 Release。主程序发布不包含插件清单。
+
 ### CLI 命令
 
 `BD2ModManager.Cli` 是开发调试工具，不随 Release 发布；命令分派在 `Program.cs`，实际逻辑全部调用 Core：
@@ -199,6 +228,8 @@ GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时
 | `bd2mm install <游戏目录> --package <包目录或 zip> [--force]` | 安装 loader |
 | `bd2mm uninstall <游戏目录>` | 卸载并还原 |
 | `bd2mm clean-residue <游戏目录>` | 清掉 loader 残留（缓存与日志，不动插件） |
+| `bd2mm diag [游戏目录] [--out 输出目录]` | 导出诊断包（默认桌面，自动脱敏） |
+| `bd2mm plugin-update [游戏目录] [--check]` | 单独检查/安装插件更新（不重下主程序） |
 | `bd2mm plugins <游戏目录>` | 列出插件 |
 | `bd2mm enable\|disable <游戏目录> <dll>` | 单插件开关 |
 | `bd2mm components <游戏目录>` | 列出第三方组件 |

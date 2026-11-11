@@ -19,6 +19,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const int MaxLogLines = 500;
 
     private readonly StateStore _store = new();
+    private ModuleSettings _modules;
     private readonly LoaderInstaller _installer;
     private readonly ComponentManager _components;
 
@@ -50,6 +51,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _toastText = "";
     private string _releaseUrl = "";
     private UpdateCheckResult? _latestUpdate;
+    private PluginManifest? _latestPlugin;
+    private PluginManifest? _pendingPlugin;
+    private bool _checkingPluginUpdate;
+    private bool _installingPluginUpdate;
+    private string _pluginUpdateStatus = $"插件 {PluginUpdater.CurrentPluginVersion} · 尚未检查";
     private DispatcherTimer? _toastTimer;
 
     private string _busyText = "";
@@ -63,6 +69,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public MainViewModel(Window window)
     {
         _window = window;
+        _modules = ModuleSettings.Load(_store);
         _installer = new LoaderInstaller(_store);
         _components = new ComponentManager(_store);
         var savedUpdateDir = UpdatePreferences.LoadDownloadDirectory();
@@ -77,12 +84,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InstallBuiltInCommand = new RelayCommand(() => _ = InstallBuiltInAsync());
         OpenGameFolderCommand = new RelayCommand(OpenGameFolder);
         CleanResidueCommand = new RelayCommand(() => _ = CleanResidueAsync());
+        ExportDiagnosticsCommand = new RelayCommand(() => _ = ExportDiagnosticsAsync());
+        OpenModulesCommand = new RelayCommand(() => _ = OpenModulesAsync());
         ClearLogCommand = new RelayCommand(ClearLogs);
         ToggleCommand = new RelayCommand(ToggleFromButton);
         OpenPathSheetCommand = new RelayCommand(OpenPathSheet);
         OpenLogsSheetCommand = new RelayCommand(OpenLogsSheet);
         CloseSheetCommand = new RelayCommand(CloseSheet);
         CheckUpdateCommand = new RelayCommand(() => _ = CheckForUpdatesAsync(true));
+        CheckPluginUpdateCommand = new RelayCommand(() => _ = CheckPluginUpdateAsync(true));
+        InstallPluginUpdateCommand = new RelayCommand(() => _ = InstallPluginUpdateAsync());
         OpenUpdateCommand = new RelayCommand(OpenReleasePage);
         InstallUpdateCommand = new RelayCommand(() => _ = InstallUpdateAsync());
         PickUpdateDirCommand = new RelayCommand(() => _ = PickUpdateDirectoryAsync());
@@ -91,6 +102,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         StatusBrush = Brush.Parse("#9AA1AA");
         Version = ReadVersion();
+
+        if (PluginUpdater.TryGetPending(_store, out var pending, out _))
+        {
+            _pendingPlugin = pending;
+            _pluginUpdateStatus = $"插件 {pending.Version} 已下载，退出游戏后点击“安装已下载更新”";
+        }
     }
 
     // ------------------------------------------------------------ 绑定属性
@@ -111,12 +128,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand InstallBuiltInCommand { get; }
     public ICommand OpenGameFolderCommand { get; }
     public ICommand CleanResidueCommand { get; }
+    public ICommand ExportDiagnosticsCommand { get; }
+    public ICommand OpenModulesCommand { get; }
     public ICommand ClearLogCommand { get; }
     public ICommand ToggleCommand { get; }
     public ICommand OpenPathSheetCommand { get; }
     public ICommand OpenLogsSheetCommand { get; }
     public ICommand CloseSheetCommand { get; }
     public ICommand CheckUpdateCommand { get; }
+    public ICommand CheckPluginUpdateCommand { get; }
+    public ICommand InstallPluginUpdateCommand { get; }
     public ICommand OpenUpdateCommand { get; }
     public ICommand InstallUpdateCommand { get; }
     public ICommand PickUpdateDirCommand { get; }
@@ -165,6 +186,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public bool CanCleanResidue => ShowCleanResidue && HasGame && !IsBusy && !GameRunning;
+
+    /// <summary>诊断包随时可导出：没找到游戏时也能带上程序与状态目录信息。</summary>
+    public bool CanExportDiagnostics => !IsBusy && _modules.Diagnostics;
+
+    public bool CanOpenModules => !IsBusy;
 
     public bool PathSheetOpen
     {
@@ -240,11 +266,37 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsInstallingPluginUpdate
+    {
+        get => _installingPluginUpdate;
+        private set
+        {
+            if (Set(ref _installingPluginUpdate, value))
+                OnPropertyChanged(nameof(CanInstallPluginUpdate));
+        }
+    }
+
     public string UpdateStatus
     {
         get => _updateStatus;
         private set => Set(ref _updateStatus, value);
     }
+
+    public string PluginUpdateStatus
+    {
+        get => _pluginUpdateStatus;
+        private set => Set(ref _pluginUpdateStatus, value);
+    }
+
+    public bool PluginUpdateAvailable => _latestPlugin != null;
+
+    public bool HasPendingPlugin => _pendingPlugin != null;
+
+    public string PluginUpdateButtonText =>
+        HasPendingPlugin ? "安装已下载更新" : "更新插件";
+
+    public bool CanInstallPluginUpdate =>
+        !IsBusy && !IsInstallingPluginUpdate && (PluginUpdateAvailable || HasPendingPlugin);
 
     /// <summary>自动更新下载目录。默认程序所在目录，用户可以改成其他可写目录。</summary>
     public string UpdateDownloadDir
@@ -334,6 +386,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanToggle));
             OnPropertyChanged(nameof(CanManageComponents));
             OnPropertyChanged(nameof(CanCleanResidue));
+            OnPropertyChanged(nameof(CanExportDiagnostics));
+            OnPropertyChanged(nameof(CanOpenModules));
             NotifyHeroState();
         }
     }
@@ -382,6 +436,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task CheckForUpdatesAsync(bool manual)
     {
+        if (!manual && !_modules.AutoUpdate) return;
         if (IsCheckingUpdate || IsInstallingUpdate) return;
 
         IsCheckingUpdate = true;
@@ -450,6 +505,137 @@ public sealed class MainViewModel : INotifyPropertyChanged
         finally
         {
             IsCheckingUpdate = false;
+        }
+    }
+
+    private async Task CheckPluginUpdateAsync(bool manual)
+    {
+        if (!manual && !_modules.AutoUpdate) return;
+        if (_checkingPluginUpdate || IsInstallingPluginUpdate) return;
+
+        _checkingPluginUpdate = true;
+        if (manual)
+        {
+            PluginUpdateStatus = "正在检查插件更新…";
+            ShowToast("正在检查插件更新…");
+        }
+
+        try
+        {
+            var result = await PluginUpdater.CheckAsync(Version);
+            if (!result.Success)
+            {
+                PluginUpdateStatus = $"插件 {PluginUpdater.CurrentPluginVersion}";
+                if (manual)
+                {
+                    ShowToast("插件检查失败");
+                    Log($"插件更新检查失败：{result.Error}");
+                }
+                return;
+            }
+
+            _latestPlugin = result.Available ? result.Latest : null;
+            OnPropertyChanged(nameof(PluginUpdateAvailable));
+            OnPropertyChanged(nameof(CanInstallPluginUpdate));
+
+            if (result.Available)
+            {
+                PluginUpdateStatus = $"插件 {result.Latest!.Version} 可用（当前 {result.CurrentVersion}）";
+                if (manual)
+                {
+                    ShowToast($"发现插件新版本 {result.Latest.Version}");
+                    Log($"发现插件新版本 {result.Latest.Version}");
+                }
+            }
+            else
+            {
+                PluginUpdateStatus = $"插件已是最新 · {result.CurrentVersion}";
+                if (manual)
+                {
+                    ShowToast("插件已是最新版本");
+                    Log("插件已是最新版本。");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            PluginUpdateStatus = $"插件 {PluginUpdater.CurrentPluginVersion}";
+            if (manual)
+            {
+                ShowToast("插件检查失败");
+                Log($"插件更新检查失败：{ex.Message}");
+            }
+        }
+        finally
+        {
+            _checkingPluginUpdate = false;
+        }
+    }
+
+    private async Task InstallPluginUpdateAsync()
+    {
+        if (IsInstallingPluginUpdate) return;
+
+        if (_game == null)
+        {
+            ShowToast("请先找到游戏目录");
+            return;
+        }
+
+        var manifest = _pendingPlugin ?? _latestPlugin;
+        if (manifest == null)
+        {
+            await CheckPluginUpdateAsync(true);
+            manifest = _latestPlugin;
+            if (manifest == null) return;
+        }
+
+        IsInstallingPluginUpdate = true;
+        try
+        {
+            PluginUpdateStatus = $"正在下载插件 {manifest.Version}…";
+            var dll = await PluginUpdater.DownloadAsync(manifest, _store);
+            _pendingPlugin = manifest;
+            OnPropertyChanged(nameof(HasPendingPlugin));
+            OnPropertyChanged(nameof(PluginUpdateButtonText));
+            OnPropertyChanged(nameof(CanInstallPluginUpdate));
+
+            if (ProcessGuard.IsGameRunning())
+            {
+                PluginUpdateStatus = $"插件 {manifest.Version} 已下载，退出游戏后再点击安装";
+                ShowToast("插件已下载，退出游戏后安装");
+                Log($"插件 {manifest.Version} 已下载；游戏运行中，暂不替换。");
+                return;
+            }
+
+            var outcome = PluginUpdater.Apply(_game, _components, _store, manifest, dll);
+            PluginUpdateStatus = outcome.Message;
+            if (outcome.Success)
+            {
+                _pendingPlugin = null;
+                _latestPlugin = null;
+                OnPropertyChanged(nameof(HasPendingPlugin));
+                OnPropertyChanged(nameof(PluginUpdateAvailable));
+                OnPropertyChanged(nameof(PluginUpdateButtonText));
+                OnPropertyChanged(nameof(CanInstallPluginUpdate));
+                ShowToast("插件已更新");
+                Log($"插件已更新到 {manifest.Version}，重启游戏后生效。");
+            }
+            else
+            {
+                ShowToast("插件更新失败");
+                Log($"插件更新失败：{outcome.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            PluginUpdateStatus = "插件更新失败，请稍后重试";
+            ShowToast("插件更新失败");
+            Log($"插件更新失败：{ex.Message}");
+        }
+        finally
+        {
+            IsInstallingPluginUpdate = false;
         }
     }
 
@@ -600,6 +786,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Log($"BD2ModManager {Version} 启动");
         Log($"程序目录：{AppContext.BaseDirectory}");
         _ = CheckForUpdatesAsync(false);
+        _ = CheckPluginUpdateAsync(false);
         await RescanAsync(firstRun: true);
     }
 
@@ -1033,6 +1220,75 @@ public sealed class MainViewModel : INotifyPropertyChanged
             IsBusy = false;
             BusyText = "";
             RefreshStatus();
+        }
+    }
+
+    private async Task OpenModulesAsync()
+    {
+        if (IsBusy) return;
+
+        var settings = ModuleSettings.Load(_store);
+        var window = new ModulesWindow(settings, _store);
+        if (await window.ShowDialog<bool>(_window))
+        {
+            _modules = ModuleSettings.Load(_store);
+            OnPropertyChanged(nameof(CanExportDiagnostics));
+            Log("功能模块设置已保存；插件会在下一轮巡检时生效。");
+        }
+    }
+
+    private async Task ExportDiagnosticsAsync()
+    {
+        if (!_modules.Diagnostics)
+        {
+            ShowToast("诊断包导出已在「功能模块」中关闭");
+            return;
+        }
+        if (IsBusy) return;
+
+        IsBusy = true;
+        BusyText = "正在生成诊断包…";
+        try
+        {
+            var game = _game;
+            var result = await Task.Run(() => Diagnostics.Export(game, _store));
+
+            foreach (var note in result.Notes) Log(note);
+
+            if (!result.Success)
+            {
+                foreach (var err in result.Errors) Log("✗ " + err);
+                ShowToast("诊断包生成失败");
+                return;
+            }
+
+            Log($"诊断包已生成：{result.ZipPath}（{result.ZipSize / 1024.0:F0} KB）");
+            ShowToast("诊断包已生成");
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(result.ZipPath))
+                {
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{result.ZipPath}\"")
+                    {
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch
+            {
+                // 打不开资源管理器不影响诊断包本身
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"导出诊断包失败：{ex.Message}");
+            ShowToast("诊断包生成失败");
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = "";
         }
     }
 

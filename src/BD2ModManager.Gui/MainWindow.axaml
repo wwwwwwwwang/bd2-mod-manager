@@ -284,6 +284,23 @@
                 </StackPanel>
               </Grid>
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="插件更新" FontSize="10" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding PluginUpdateStatus}" FontSize="9"
+                             Foreground="{StaticResource TextSecondary}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7"
+                            VerticalAlignment="Center">
+                  <Button Classes="link" Content="检查"
+                          Command="{Binding CheckPluginUpdateCommand}"
+                          IsEnabled="{Binding !IsInstallingPluginUpdate}" />
+                  <Button Classes="link" Content="{Binding PluginUpdateButtonText}"
+                          Command="{Binding InstallPluginUpdateCommand}"
+                          IsVisible="{Binding CanInstallPluginUpdate}" />
+                </StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                 <TextBlock Text="{Binding UpdateDownloadDirText}" FontSize="9"
                            Foreground="{StaticResource TextMuted}"
                            TextTrimming="CharacterEllipsis"
@@ -295,10 +312,20 @@
             </StackPanel>
           </Border>
 
-          <Button Classes="ghost" Content="清理残留" HorizontalAlignment="Left"
-                  Command="{Binding CleanResidueCommand}"
-                  IsVisible="{Binding ShowCleanResidue}"
-                  IsEnabled="{Binding CanCleanResidue}" />
+          <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+            <Button Classes="ghost" Content="清理残留" HorizontalAlignment="Left"
+                    Command="{Binding CleanResidueCommand}"
+                    IsVisible="{Binding ShowCleanResidue}"
+                    IsEnabled="{Binding CanCleanResidue}" />
+            <Button Grid.Column="1" Classes="link" Content="功能模块"
+                    Command="{Binding OpenModulesCommand}"
+                    IsEnabled="{Binding CanOpenModules}"
+                    ToolTip.Tip="开关皮肤、互动、审查、诊断与高风险本地镜像模块" />
+            <Button Grid.Column="2" Classes="link" Content="导出诊断包" HorizontalAlignment="Right"
+                    Command="{Binding ExportDiagnosticsCommand}"
+                    IsEnabled="{Binding CanExportDiagnostics}"
+                    ToolTip.Tip="打包版本、loader、插件、配置与日志末尾，便于反馈问题" />
+          </Grid>
 
           <Border IsVisible="{Binding ShowPickPackage}"
                   Background="#FFF8F1" BorderBrush="#F3D6BC" BorderThickness="1"

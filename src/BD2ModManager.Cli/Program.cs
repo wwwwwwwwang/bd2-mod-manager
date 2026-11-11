@@ -4,6 +4,7 @@ Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 var store = new StateStore();
 var installer = new LoaderInstaller(store);
+var components = new ComponentManager(store);
 
 if (args.Length == 0) { Help(); Pause(); return 0; }
 
@@ -16,6 +17,8 @@ try
         "install" => CmdInstall(args),
         "uninstall" => CmdUninstall(args),
         "clean-residue" or "cleanresidue" => CmdCleanResidue(args),
+        "diag" or "diagnostics" => CmdDiag(args),
+        "plugin-update" => CmdPluginUpdate(args),
         "plugins" => CmdPlugins(args),
         "enable" => CmdToggle(args, true),
         "disable" => CmdToggle(args, false),
@@ -328,6 +331,80 @@ static void Pause()
     try { Console.ReadKey(intercept: true); } catch { }
 }
 
+int CmdPluginUpdate(string[] a)
+{
+    var checkOnly = a.Any(x => string.Equals(x, "--check", StringComparison.OrdinalIgnoreCase));
+    var game = a.Length > 1 && !a[1].StartsWith("--", StringComparison.Ordinal)
+        ? ResolveGame(a, 1)
+        : new GameLocator().Find().FirstOrDefault();
+
+    var appVersion = typeof(PluginUpdater).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+    var check = PluginUpdater.CheckAsync(appVersion).GetAwaiter().GetResult();
+    if (!check.Success)
+    {
+        Console.Error.WriteLine($"检查插件更新失败：{check.Error}");
+        return 1;
+    }
+
+    Console.WriteLine($"当前插件  {check.CurrentVersion}");
+    Console.WriteLine($"最新插件  {check.Latest?.Version ?? check.CurrentVersion}");
+    if (!check.Available)
+    {
+        Console.WriteLine("插件已是最新。");
+        return 0;
+    }
+
+    Console.WriteLine($"说明      {check.Latest!.Notes ?? "(无)"}");
+    if (checkOnly)
+    {
+        Console.WriteLine("已按 --check 停止（未下载）。");
+        return 0;
+    }
+
+    var dll = PluginUpdater.DownloadAsync(check.Latest, store).GetAwaiter().GetResult();
+    Console.WriteLine($"已下载    {dll}");
+
+    if (game == null)
+    {
+        Console.WriteLine("未找到游戏目录；已暂存，安装组件时需要游戏目录。");
+        return 1;
+    }
+
+    var outcome = PluginUpdater.Apply(game, components, store, check.Latest, dll);
+    Console.WriteLine(outcome.Message);
+    return outcome.Success ? 0 : 1;
+}
+
+int CmdDiag(string[] a)
+{
+    GameInstall? game;
+    if (a.Length > 1 && !a[1].StartsWith("--", StringComparison.Ordinal))
+    {
+        game = ResolveGame(a, 1);
+        if (game == null)
+            Console.WriteLine("提示：该目录不是有效的 BD2 安装，将导出不含游戏信息的诊断包。");
+    }
+    else
+    {
+        game = new GameLocator().Find().FirstOrDefault();
+    }
+
+    var result = Diagnostics.Export(game, store, new DiagnosticOptions
+    {
+        OutputDirectory = ArgValue(a, "--out")
+    });
+
+    foreach (var note in result.Notes) Console.WriteLine($"  {note}");
+    foreach (var error in result.Errors) Console.Error.WriteLine($"  ✗ {error}");
+
+    if (!result.Success) return 1;
+
+    Console.WriteLine();
+    Console.WriteLine($"诊断包：{result.ZipPath}");
+    Console.WriteLine($"大小：{result.ZipSize / 1024.0:F0} KB");
+    return 0;
+}
+
 static int Help()
 {
     Console.WriteLine("""
@@ -339,6 +416,8 @@ BD2ModManager — BD2 的 BepInEx 加载器管理工具（命令行版）
                                           安装 loader
   bd2mm uninstall <游戏目录>              卸载并还原
   bd2mm clean-residue <游戏目录>          清掉 loader 残留（缓存与日志，不动插件）
+  bd2mm diag [游戏目录] [--out 输出目录]   导出诊断包（默认桌面）
+  bd2mm plugin-update [游戏目录] [--check] 单独更新解锁插件（不重下主程序）
   bd2mm plugins <游戏目录>                列出插件
   bd2mm enable  <游戏目录> <dll>          启用插件
   bd2mm disable <游戏目录> <dll>          禁用插件

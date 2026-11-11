@@ -36,8 +36,8 @@ namespace Suiren.BD2.SkinUnlock
             new List<KeyValuePair<MethodBase, MethodInfo>>();
 
         // 委托可能还没接上（例如离线测试），统一走空安全调用
-        private static void Note(string message) => LogInfo?.Invoke(message);
-        private static void Complaint(string message) => LogWarn?.Invoke(message);
+        internal static void Note(string message) => LogInfo?.Invoke(message);
+        internal static void Complaint(string message) => LogWarn?.Invoke(message);
 
         // ------------------------------------------------------------ 安装
 
@@ -108,15 +108,25 @@ namespace Suiren.BD2.SkinUnlock
                 Complaint("没找到 SkinExchangePopupUI.LoadTexture，未拥有皮肤的格子可能一直转圈");
             }
 
+            // 心契之约 / 互动 / 审查 / 大厅立绘（全部可选，按配置启用）
+            installed += ExtraUnlocks.Install(harmony, r);
+
             Note($"已挂载 {installed} 个补丁。");
             return installed;
         }
 
-        private static bool TryPatch(Harmony harmony, MethodInfo target, string patchName, bool isPrefix, string label)
+        internal static bool TryPatch(Harmony harmony, MethodBase target, string patchName, bool isPrefix,
+            string label, Type patchType = null)
         {
             try
             {
-                var method = typeof(Patches).GetMethod(patchName, BindingFlags.Static | BindingFlags.NonPublic);
+                var method = (patchType ?? typeof(Patches)).GetMethod(
+                    patchName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+                if (method == null)
+                {
+                    Complaint($"补丁失败（{label}）：找不到补丁方法 {patchName}");
+                    return false;
+                }
                 var attr = new HarmonyMethod(method);
 
                 if (!CallPatch(harmony, target, attr, isPrefix, out var error))

@@ -26,7 +26,7 @@ namespace Suiren.BD2.SkinUnlock
     public sealed class SkinUnlockPlugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.suiren.bd2.skinunlock";
-        public const string Version = "1.1.3";
+        public const string Version = "1.2.1";
 
         private static ManualLogSource _log;
 
@@ -40,6 +40,13 @@ namespace Suiren.BD2.SkinUnlock
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<float> _reapplyInterval;
         private ConfigEntry<bool> _verbose;
+
+        private ConfigEntry<bool> _unlockAllInteractions;
+        private ConfigEntry<bool> _bypassInteractionUnlock;
+        private ConfigEntry<bool> _disableCensorship;
+        private ConfigEntry<bool> _unlockCovenantList;
+        private ConfigEntry<bool> _lobbyPortrait;
+        private ConfigEntry<int> _lobbyDesignId;
 
         private Harmony _harmony;
         private string _selectionPath;
@@ -67,7 +74,11 @@ namespace Suiren.BD2.SkinUnlock
             Diag.Open("Awake 开始（v" + Version + "）");
 
             BindConfig();
-            Diag.Note($"配置：Enabled={_enabled.Value} Verbose={_verbose.Value} 间隔={_reapplyInterval.Value}s");
+            ApplyExtraConfig();
+            Diag.Note($"配置：Enabled={_enabled.Value} Verbose={_verbose.Value} 间隔={_reapplyInterval.Value}s " +
+                      $"互动={_unlockAllInteractions.Value} 解锁判定={_bypassInteractionUnlock.Value} " +
+                      $"审查={_disableCensorship.Value} 心契之约={_unlockCovenantList.Value} " +
+                      $"立绘={_lobbyPortrait.Value}/{_lobbyDesignId.Value}");
 
             if (!_enabled.Value)
             {
@@ -315,6 +326,20 @@ namespace Suiren.BD2.SkinUnlock
         {
             try
             {
+                ModuleFlags.Reload();
+                ApplyExtraConfig();
+                if (!ModuleFlags.SkinUnlock)
+                {
+                    // 总开关关闭时停掉补丁，并把本地镜像/皮肤条目撤掉，避免要等重启游戏才恢复。
+                    Patches.Active = false;
+                    try { _state.Rollback(_refs); } catch { }
+                    try { AllCostumes.Rollback(_refs); } catch { }
+                    try { InteractionScenes.Rollback(_refs); } catch { }
+                    return;
+                }
+
+                Patches.Active = true;
+
                 // 登出/换号时账号数据先被清空，随后数据库卸载。
                 // 这一拍什么都不做，等下一次登录的数据下发后自然恢复。
                 if (!_refs.HasAccountData()) return;
@@ -327,15 +352,23 @@ namespace Suiren.BD2.SkinUnlock
                     _lastInjected = injected;
                 }
 
+                // 全服装本地镜像：默认关闭；关闭时会把上一轮补的条目撤掉。
+                var mirrored = AllCostumes.Apply(_refs, _catalog, ModuleFlags.AllCostumes);
+                if (mirrored > 0)
+                    LogInfo($"补入本地服装镜像 {mirrored} 件（当前共 {AllCostumes.InjectedCount} 件）");
+
                 // 清掉 designId=0 的默认皮肤与设计表里没有的脏条目（每轮巡检清一次）
                 var cleaned = _state.CleanupInvalid(_refs);
                 if (cleaned > 0 && _verbose.Value)
                     LogInfo($"清理脏皮肤条目 {cleaned} 条（退出时会放回）");
 
-                // 大厅互动场景：Type=25 的道具，未购入时也要出现在大厅
-                var scenes = InteractionScenes.Inject(_refs);
+                // 大厅互动场景：Type=25 的道具，未购入时也要出现在大厅；
+                // 打开 UnlockAllInteractions 后连其它互动条目一起补。
+                ApplyExtraConfig();
+                var scenes = InteractionScenes.Inject(_refs, _unlockAllInteractions.Value);
                 if (scenes > 0)
-                    LogInfo($"补入大厅互动场景 {scenes} 个（当前共 {InteractionScenes.InjectedCount} 个）");
+                    LogInfo($"补入大厅互动场景 {scenes} 个（当前共 {InteractionScenes.InjectedCount} 个，" +
+                            $"心契之约互动 {InteractionScenes.AllInteractionIds.Count} 个）");
 
                 var reapplied = _state.ReapplySelection(_refs);
                 if (reapplied > 0 && _verbose.Value)
@@ -376,6 +409,7 @@ namespace Suiren.BD2.SkinUnlock
             Patches.Active = false;
 
             try { _state.Rollback(_refs); } catch { }
+            try { AllCostumes.Rollback(_refs); } catch { }
             try { InteractionScenes.Rollback(_refs); } catch { }
             TextureGuard.Clear();
 
@@ -405,6 +439,51 @@ namespace Suiren.BD2.SkinUnlock
 
             _verbose = Config.Bind("Diagnostics", "Verbose", false,
                 "输出每一轮巡检的细节，排查问题时打开。");
+
+            _unlockAllInteractions = Config.Bind("Interactions", "UnlockAllInteractions", true,
+                "把 InteractionId>0 的全部大厅互动条目补进道具列表（含非皮肤互动），" +
+                "并在心契之约界面可用。只改本地数据镜像。");
+
+            _bypassInteractionUnlock = Config.Bind("Interactions", "BypassInteractionUnlock", true,
+                "让 CheckInteractionUnlock 返回 true，放行互动场景。");
+
+            _disableCensorship = Config.Bind("Interactions", "DisableCensorship", true,
+                "让 CensorshipManager.IsCensorship 返回 false，关闭按地区的内容审查。");
+
+            _unlockCovenantList = Config.Bind("Interactions", "UnlockCovenantList", false,
+                "实验性：心契之约列表显示全部互动，并放行界面上的互动/约会按钮。" +
+                "不同游戏版本可能界面异常，默认关闭。");
+
+            _lobbyPortrait = Config.Bind("Skins", "LobbyPortrait", true,
+                "大厅立绘使用当前选择的皮肤（只对已拥有的服装生效）。");
+
+            _lobbyDesignId = Config.Bind("Skins", "LobbyDesignId", 0,
+                "强制大厅立绘使用指定 designId；0 = 自动按服装选择映射。");
+        }
+
+        private void ApplyExtraConfig()
+        {
+            ModuleFlags.Reload();
+
+            // GUI 的 modules.ini 是总开关面板；插件自己的 BepInEx 配置只保留
+            // 进阶参数（立绘 designId 等），避免两边各说各话。
+            if (_enabled.Value != ModuleFlags.SkinUnlock) _enabled.Value = ModuleFlags.SkinUnlock;
+            if (_unlockAllInteractions.Value != ModuleFlags.Interactions)
+                _unlockAllInteractions.Value = ModuleFlags.Interactions;
+            if (_bypassInteractionUnlock.Value != ModuleFlags.Interactions)
+                _bypassInteractionUnlock.Value = ModuleFlags.Interactions;
+            if (_disableCensorship.Value != ModuleFlags.DisableCensorship)
+                _disableCensorship.Value = ModuleFlags.DisableCensorship;
+            if (_unlockCovenantList.Value != ModuleFlags.CovenantExperimental)
+                _unlockCovenantList.Value = ModuleFlags.CovenantExperimental;
+
+            ExtraUnlocks.Configure(
+                _unlockAllInteractions.Value,
+                _bypassInteractionUnlock.Value,
+                _disableCensorship.Value,
+                _unlockCovenantList.Value,
+                _lobbyPortrait.Value,
+                _lobbyDesignId.Value);
         }
 
         // ---------------------------------------------------------------- 选择记录

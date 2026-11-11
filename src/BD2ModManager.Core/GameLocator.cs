@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -45,8 +46,16 @@ public sealed class GameLocator
         var results = new Dictionary<string, GameInstall>(StringComparer.OrdinalIgnoreCase);
         var roots = new List<string>();
 
+        // 游戏正在运行时，进程路径是最可靠的线索：安装目录再深也能直接拿到。
+        foreach (var g in FromRunningProcesses())
+            results[g.Root] = g;
+
         roots.AddRange(KnownRoots());
-        if (OperatingSystem.IsWindows()) roots.AddRange(RegistryRoots());
+        if (OperatingSystem.IsWindows())
+        {
+            roots.AddRange(RegistryRoots());
+            roots.AddRange(SteamRoots());
+        }
         if (extraRoots != null)
         {
             foreach (var r in extraRoots)
@@ -63,6 +72,103 @@ public sealed class GameLocator
         return results.Values
             .OrderByDescending(g => Directory.GetLastWriteTimeUtc(g.Root))
             .ToList();
+    }
+
+    /// <summary>
+    /// 从正在运行的游戏进程反推安装目录。
+    /// 比全盘扫描可靠：玩家把游戏放在任意目录、甚至移动硬盘上都能找到。
+    /// 拿不到 MainModule（权限不足/进程刚退出）时静默跳过。
+    /// </summary>
+    public static IEnumerable<GameInstall> FromRunningProcesses()
+    {
+        foreach (var processName in ProcessGuard.GameProcessNames)
+        {
+            Process[] processes;
+            try { processes = Process.GetProcessesByName(processName); }
+            catch { continue; }
+
+            foreach (var p in processes)
+            {
+                string? exePath = null;
+                try { exePath = p.MainModule?.FileName; }
+                catch { }
+                finally { p.Dispose(); }
+
+                if (string.IsNullOrWhiteSpace(exePath)) continue;
+                var dir = Path.GetDirectoryName(exePath);
+                if (string.IsNullOrWhiteSpace(dir)) continue;
+
+                GameInstall? game = null;
+                try { game = TryBuild(dir, "运行中的进程"); }
+                catch { }
+                if (game != null) yield return game;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Steam 库目录（bd2 不在 Steam 上，但玩家可能把客户端放进 Steam 库统一管理）。
+    /// 只读取 libraryfolders.vdf 里的 path，不做全盘遍历。
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static IEnumerable<string> SteamRoots()
+    {
+        foreach (var steamDir in SteamInstallDirs())
+        {
+            var vdf = Path.Combine(steamDir, "steamapps", "libraryfolders.vdf");
+            foreach (var library in ReadSteamLibraries(vdf))
+            {
+                yield return Path.Combine(library, "steamapps", "common");
+                yield return Path.Combine(library, "steamapps", "common", "Neowiz");
+            }
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static IEnumerable<string> SteamInstallDirs()
+    {
+        var found = new List<string>();
+        void Add(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            var p = path.Trim().Trim('"');
+            if (!Directory.Exists(p)) return;
+            if (!found.Contains(p, StringComparer.OrdinalIgnoreCase)) found.Add(p);
+        }
+
+        try
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
+            Add(k?.GetValue("SteamPath") as string);
+        }
+        catch { }
+
+        foreach (var sub in new[] { @"SOFTWARE\Valve\Steam", @"SOFTWARE\WOW6432Node\Valve\Steam" })
+        {
+            try
+            {
+                using var k = Registry.LocalMachine.OpenSubKey(sub);
+                Add(k?.GetValue("InstallPath") as string);
+            }
+            catch { }
+        }
+
+        return found;
+    }
+
+    private static IEnumerable<string> ReadSteamLibraries(string vdfPath)
+    {
+        if (!File.Exists(vdfPath)) yield break;
+
+        string text;
+        try { text = File.ReadAllText(vdfPath); }
+        catch { yield break; }
+
+        foreach (Match m in Regex.Matches(text, @"""path""\s+""([^""]+)"""))
+        {
+            var path = m.Groups[1].Value.Replace(@"\\", @"\");
+            if (Directory.Exists(path)) yield return path;
+        }
     }
 
     /// <summary>从注册表 Uninstall 项取安装位置。</summary>

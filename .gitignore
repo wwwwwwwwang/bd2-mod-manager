@@ -24,6 +24,9 @@ refs/
 *.userprefs
 *.DotSettings.user
 
+# ---- 本地分析工作区（含卡密与反编译产物，绝不提交）----
+.rea/
+
 # ---- 本地工具与日志 ----
 *.log
 *.tmp
@@ -43,3 +46,6 @@ dev-notes/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# local gkld tool (data/token must not be committed)
+gkld/

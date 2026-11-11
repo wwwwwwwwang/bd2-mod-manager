@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text.Json;
 using BD2ModManager.Core;
 
 namespace BD2ModManager.Core.Tests;
@@ -25,6 +27,9 @@ internal static class Program
             IncompleteLoaderDetection();
             ResidueDetection();
             ResidueCleanup();
+            DiagnosticsExport();
+            ModuleSettingsContract();
+            PluginUpdateContract();
             TogglePathContract();
             ComponentPathDrift();
             FullInstallUninstallCycle(args.Length > 0 ? args[0] : null);
@@ -141,6 +146,104 @@ internal static class Program
         Console.WriteLine();
     }
 
+    // ---------------------------------------------------------------- 模块设置
+
+    private static void ModuleSettingsContract()
+    {
+        Console.WriteLine("[5b] 模块设置：默认值、保存、重载、风险判定");
+        var store = NewStore();
+        var path = ModuleSettings.PathFor(store);
+        if (File.Exists(path)) File.Delete(path);
+
+        var fresh = ModuleSettings.Load(store);
+        Check("首次启动未接受免责声明", !fresh.DisclaimerAccepted);
+        Check("低风险模块默认开启、免责版本为 0",
+            fresh.SkinUnlock && fresh.Interactions && fresh.DisclaimerVersion == 0);
+        Check("高风险模块默认关闭",
+            !fresh.AllCostumes && !fresh.AllCharacters && !fresh.CovenantExperimental);
+        Check("默认没有启用高风险模块", !fresh.HasRiskyModulesEnabled);
+
+        fresh.DisclaimerAccepted = true;
+        fresh.DisclaimerVersion = ModuleSettings.CurrentVersion;
+        fresh.AllCostumes = true;
+        fresh.Save(store);
+        Check("modules.ini 已写入", File.Exists(path));
+
+        var loaded = ModuleSettings.Load(store);
+        Check("免责声明状态可持久化",
+            loaded.DisclaimerAccepted && loaded.DisclaimerVersion == ModuleSettings.CurrentVersion);
+        Check("高风险开关可持久化并被识别", loaded.AllCostumes && loaded.HasRiskyModulesEnabled);
+
+        loaded.AllCostumes = false;
+        Check("关闭高风险模块后风险判定归零", !loaded.HasRiskyModulesEnabled);
+    }
+
+    // ---------------------------------------------------------------- 诊断包
+
+    private static void DiagnosticsExport()
+    {
+        Console.WriteLine("[5] 诊断包：内容齐全、路径脱敏、不打包 DLL");
+        var root = NewGameDir("diag");
+        var store = NewStore();
+        var game = Game(root);
+
+        Directory.CreateDirectory(Path.Combine(root, "BepInEx", "core"));
+        Directory.CreateDirectory(Path.Combine(root, "BepInEx", "plugins", "Demo"));
+        Directory.CreateDirectory(Path.Combine(root, "BepInEx", "config"));
+        File.WriteAllText(Path.Combine(root, "winhttp.dll"), "dummy");
+        File.WriteAllText(Path.Combine(root, "doorstop_config.ini"), "[UnityDoorstop]\r\nenabled=true\r\n");
+        File.WriteAllText(Path.Combine(root, "BepInEx", "core", "BepInEx.dll"), "dummy");
+        File.WriteAllText(Path.Combine(root, "BepInEx", "plugins", "Demo", "Demo.dll"), "dll");
+        File.WriteAllText(Path.Combine(root, "BepInEx", "config", "BepInEx.cfg"), "[Logging]\r\nEnabled = true\r\n");
+        File.WriteAllText(Path.Combine(root, "BepInEx", "LogOutput.log"), "info\nException: boom\n");
+
+        var outDir = NewDir("diag-out");
+        var result = Diagnostics.Export(game, store, new DiagnosticOptions { OutputDirectory = outDir });
+
+        Check("导出成功", result.Success, string.Join(" | ", result.Errors));
+        Check("zip 存在", result.ZipPath != null && File.Exists(result.ZipPath));
+        Check("zip 非空", result.ZipSize > 0);
+
+        if (result.ZipPath == null || !File.Exists(result.ZipPath)) { Console.WriteLine(); return; }
+
+        using var zip = ZipFile.OpenRead(result.ZipPath);
+        var names = zip.Entries.Select(e => e.FullName).ToList();
+        Check("包含 report.txt", names.Contains("report.txt"));
+        Check("包含 summary.json", names.Contains("summary.json"));
+        Check("包含配置文件", names.Any(n => n.StartsWith("configs/") && n.EndsWith("BepInEx.cfg")));
+        Check("包含日志文件", names.Any(n => n.StartsWith("logs/") && n.Contains("LogOutput.log")));
+        Check("不打包任何 DLL", !names.Any(n => n.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)));
+
+        string report;
+        using (var sr = new StreamReader(zip.GetEntry("report.txt")!.Open()))
+            report = sr.ReadToEnd();
+
+        Check("报告含客户端标识", report.Contains("BD2ModManager 诊断报告"));
+        Check("报告含插件名", report.Contains("Demo.dll"));
+        Check("报告命中日志异常检查", report.Contains("日志里出现异常"));
+
+        string summary;
+        using (var sr = new StreamReader(zip.GetEntry("summary.json")!.Open()))
+            summary = sr.ReadToEnd();
+
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(profile))
+        {
+            var profileJson = profile.Replace("\\", "\\\\");
+            Check("报告不含完整用户目录", !report.Contains(profile, StringComparison.OrdinalIgnoreCase));
+            Check("summary 不含完整用户目录", !summary.Contains(profile, StringComparison.OrdinalIgnoreCase)
+                                               && !summary.Contains(profileJson, StringComparison.OrdinalIgnoreCase));
+        }
+        Check("summary 使用脱敏占位符", summary.Contains("%USERPROFILE%") || summary.Contains("%APPDATA%"));
+
+        var outDir2 = NewDir("diag-nogame");
+        var noGame = Diagnostics.Export(null, store, new DiagnosticOptions { OutputDirectory = outDir2 });
+        Check("没找到游戏也能导出", noGame.Success && noGame.ZipPath != null && File.Exists(noGame.ZipPath),
+            string.Join(" | ", noGame.Errors));
+
+        Console.WriteLine();
+    }
+
     // ---------------------------------------------------------------- 场景 3
 
     /// <summary>
@@ -224,6 +327,14 @@ internal static class Program
         var name = first[0].Name;
         var dir = Path.Combine(root, first[0].RelativeDir.Replace('/', Path.DirectorySeparatorChar));
 
+        var replacementDir = NewDir("CompDemoNew");
+        var replacement = Path.Combine(replacementDir, "CompDemo.dll");
+        File.WriteAllBytes(replacement, Enumerable.Repeat((byte)7, 4096).ToArray());
+        var replaced = comp.ReplaceFile(game, name, "CompDemo.dll", replacement, "测试插件更新");
+        Check("替换组件文件成功", replaced.Success, string.Join(" | ", replaced.Errors));
+        Check("替换后组件哈希与下载文件一致",
+            Hashing.Sha256File(Path.Combine(dir, "CompDemo.dll")) == Hashing.Sha256File(replacement));
+
         var off = comp.SetEnabled(game, name, false);
         Check("禁用成功", off.Success, string.Join(" | ", off.Errors));
 
@@ -306,6 +417,52 @@ internal static class Program
         Check("游戏目录回到安装前的条目数",
             Directory.GetFileSystemEntries(root).Length == before,
             $"现在 {Directory.GetFileSystemEntries(root).Length}，原为 {before}");
+        Console.WriteLine();
+    }
+
+    private static void PluginUpdateContract()
+    {
+        Console.WriteLine("插件独立更新");
+
+        Check("版本比较：1.2.1 > 1.2.0", PluginUpdater.IsNewer("1.2.1", "1.2.0"));
+        Check("版本比较：1.10 > 1.9", PluginUpdater.IsNewer("1.10", "1.9"));
+        Check("版本比较：相同版本不算新", !PluginUpdater.IsNewer("1.2.1", "1.2.1"));
+
+        const string sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        using var goodDoc = JsonDocument.Parse($$"""
+            {
+              "schema": 1,
+              "name": "BD2SkinUnlock",
+              "version": "1.2.1",
+              "minAppVersion": "0.8.12",
+              "url": "https://example.com/BD2SkinUnlock.dll",
+              "sha256": "{{sha}}",
+              "size": 61440,
+              "notes": "test"
+            }
+            """);
+        var good = PluginUpdater.ParseManifest(goodDoc.RootElement);
+        Check("解析合法清单", good != null && good.Version == "1.2.1" && good.Sha256 == sha);
+        Check("清单字段完整", good?.MinAppVersion == "0.8.12" && good.Size == 61440);
+
+        using var httpDoc = JsonDocument.Parse($$"""
+            {"version":"1.2.1","url":"http://example.com/x.dll","sha256":"{{sha}}"}
+            """);
+        Check("拒绝非 HTTPS 下载地址", PluginUpdater.ParseManifest(httpDoc.RootElement) == null);
+
+        using var badHashDoc = JsonDocument.Parse("""
+            {"version":"1.2.1","url":"https://example.com/x.dll","sha256":"abc"}
+            """);
+        Check("拒绝非法 SHA256", PluginUpdater.ParseManifest(badHashDoc.RootElement) == null);
+
+        using var badSchemaDoc = JsonDocument.Parse($$"""
+            {"schema":2,"version":"1.2.1","url":"https://example.com/x.dll","sha256":"{{sha}}"}
+            """);
+        Check("拒绝未知清单 schema", PluginUpdater.ParseManifest(badSchemaDoc.RootElement) == null);
+
+        var store = NewStore();
+        Check("没有 pending 时返回 false",
+            !PluginUpdater.TryGetPending(store, out _, out _));
         Console.WriteLine();
     }
 

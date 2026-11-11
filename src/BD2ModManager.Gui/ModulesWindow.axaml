@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="BD2ModManager.Gui.ModulesWindow"
+        Title="功能模块"
+        Width="720" Height="620"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBg}">
+  <Grid Margin="24" RowDefinitions="Auto,*,Auto">
+    <StackPanel Spacing="4">
+      <TextBlock Text="功能模块" FontSize="24" FontWeight="Bold" />
+      <TextBlock Text="开关会写入状态目录的 modules.ini，插件下一轮巡检生效。高风险功能需要二次确认。"
+                 Classes="muted" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" Margin="0,16" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="10">
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <TextBlock Text="基础功能" FontSize="15" FontWeight="SemiBold" />
+            <CheckBox x:Name="SkinUnlockCheck" Content="皮肤本地显示（只改本地显示）" />
+            <CheckBox x:Name="InteractionsCheck" Content="大厅互动扩展（补全互动入口、放行互动判定）" />
+            <CheckBox x:Name="CensorshipCheck" Content="关闭内容审查" />
+            <CheckBox x:Name="DiagnosticsCheck" Content="诊断包导出" />
+            <CheckBox x:Name="AutoUpdateCheck" Content="自动检查更新" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <TextBlock Text="高风险功能（默认关闭）" FontSize="15" FontWeight="SemiBold" />
+            <CheckBox x:Name="CovenantCheck" Content="心契之约实验扩展（约会列表/互动按钮放行）" />
+            <CheckBox x:Name="AllCostumesCheck" Content="全服装本地镜像（服务器不认可）" />
+            <CheckBox x:Name="AllCharactersCheck" Content="全角色本地镜像（尚未实现）" IsEnabled="False" />
+            <CheckBox x:Name="AllDatingCheck" Content="全情缘服装本地镜像（尚未实现）" IsEnabled="False" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
+      <TextBlock x:Name="StatusText" Foreground="#DC2626" FontSize="12" VerticalAlignment="Center" />
+      <Button Grid.Column="1" Classes="ghost" Content="取消" Click="OnCancel" Margin="12,0,8,0" />
+      <Button Grid.Column="2" Classes="primary" Content="保存" Click="OnSave" />
+    </Grid>
+  </Grid>
+</Window>

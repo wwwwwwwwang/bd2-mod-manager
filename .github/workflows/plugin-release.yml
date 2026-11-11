@@ -1,0 +1,102 @@
+name: Plugin Release
+
+on:
+  push:
+    tags: ["plugin-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "插件标签，例如 plugin-v1.2.1（留空使用当前 ref）"
+        required: false
+        type: string
+      min_app:
+        description: "最低主程序版本"
+        required: false
+        default: "0.8.12"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plugin-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 构建并发布插件
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: 解析标签
+        id: meta
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then TAG="${{ github.ref_name }}"; fi
+          if [[ "$TAG" != plugin-v* ]]; then
+            echo "::error::插件标签必须以 plugin-v 开头（当前：$TAG）"
+            exit 1
+          fi
+          VER="${TAG#plugin-v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: 准备编译引用
+        run: |
+          python3 scripts/package_loader.py --cache-dir .cache/loader --out dist/bd2-loader.zip
+          python3 scripts/prepare_refs.py --zip dist/bd2-loader.zip
+
+      - name: 编译插件（Release）
+        run: dotnet build src/BD2ModManager.SkinUnlock/BD2ModManager.SkinUnlock.csproj -c Release
+
+      - name: 离线验证插件
+        run: dotnet run --project tests/BD2ModManager.SkinUnlock.Tests -c Release
+
+      - name: 生成发布资产与清单
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          VER: ${{ steps.meta.outputs.version }}
+          MIN_APP: ${{ github.event.inputs.min_app || '0.8.12' }}
+        run: |
+          mkdir -p dist/plugin
+          cp src/BD2ModManager.SkinUnlock/bin/Release/netstandard2.0/BD2SkinUnlock.dll dist/plugin/
+          cd dist/plugin
+          SHA=$(sha256sum BD2SkinUnlock.dll | cut -d' ' -f1)
+          SIZE=$(stat -c %s BD2SkinUnlock.dll)
+          python3 - "$SHA" "$SIZE" <<'PY'
+          import json, os, sys
+          sha, size = sys.argv[1], int(sys.argv[2])
+          tag = os.environ["TAG"]
+          manifest = {
+            "schema": 1,
+            "name": "BD2SkinUnlock",
+            "version": os.environ["VER"],
+            "minAppVersion": os.environ["MIN_APP"],
+            "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}/BD2SkinUnlock.dll",
+            "sha256": sha,
+            "size": size,
+            "notes": "插件独立更新：不重新下载主程序。",
+          }
+          with open("plugin.json", "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+          PY
+          cat plugin.json
+          sha256sum * > SHA256SUMS.txt
+
+      - name: 发布到 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/plugin/* --clobber
+          else
+            gh release create "$TAG" dist/plugin/* \
+              --title "BD2SkinUnlock $TAG" --generate-notes
+          fi

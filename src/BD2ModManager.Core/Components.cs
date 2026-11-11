@@ -433,6 +433,78 @@ public sealed class ComponentManager
         return r;
     }
 
+    // ---------------------------------------------------------------- 单文件替换
+
+    /// <summary>
+    /// 替换组件里已经记录过的一个文件（插件独立更新用）。
+    /// 只替换哈希仍与安装记录一致的文件；先备份，失败时尝试还原。
+    /// </summary>
+    public OpResult ReplaceFile(
+        GameInstall game, string componentName, string fileName, string sourcePath, string reason)
+    {
+        if (ProcessGuard.IsGameRunning())
+            return OpResult.Fail("游戏正在运行，请先完全退出游戏再替换插件。");
+        if (!File.Exists(sourcePath))
+            return OpResult.Fail("下载的插件文件不存在。");
+
+        var state = _store.TryLoadComponents(game.Root);
+        var rec = state?.Components.FirstOrDefault(
+            c => string.Equals(c.Name, componentName, StringComparison.OrdinalIgnoreCase));
+        if (state == null || rec == null)
+            return OpResult.Fail($"没有这个组件的安装记录：{componentName}");
+
+        var f = rec.Files.FirstOrDefault(x =>
+        {
+            var name = Path.GetFileName(x.Path);
+            return string.Equals(name, fileName, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(name, fileName + ".disabled", StringComparison.OrdinalIgnoreCase);
+        });
+        if (f == null)
+            return OpResult.Fail($"组件 {componentName} 里没有记录文件 {fileName}，请重新安装组件。");
+
+        var abs = ResolvePath(game.Root, f.Path);
+        if (abs == null)
+            return OpResult.Fail($"插件文件不存在，无法替换：{f.Path}");
+
+        var current = "";
+        try { current = Hashing.Sha256File(abs); }
+        catch (Exception ex) { return OpResult.Fail($"读取现有插件失败：{ex.Message}"); }
+        if (!string.Equals(current, f.Sha256, StringComparison.OrdinalIgnoreCase))
+            return OpResult.Fail("插件文件已被修改，拒绝覆盖。请先移除组件再重新安装。");
+
+        var backupDir = Path.Combine(_store.BaseDir, "plugin-update", "backup");
+        var backup = Path.Combine(
+            backupDir, $"{componentName}-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.dll.bak");
+
+        try
+        {
+            Directory.CreateDirectory(backupDir);
+            File.Copy(abs, backup, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            return OpResult.Fail($"备份现有插件失败：{ex.Message}");
+        }
+
+        try
+        {
+            CopyAtomic(sourcePath, abs);
+            f.Sha256 = Hashing.Sha256File(abs);
+            rec.Source = reason;
+            rec.InstalledAt = DateTimeOffset.Now;
+            _store.SaveComponents(state);
+
+            var r = new OpResult { Success = true };
+            r.Info($"已替换 {fileName}（备份：{backup}）");
+            return r;
+        }
+        catch (Exception ex)
+        {
+            try { File.Copy(backup, abs, overwrite: true); } catch { }
+            return OpResult.Fail($"替换插件失败，已尝试还原：{ex.Message}");
+        }
+    }
+
     // ---------------------------------------------------------------- 开关
 
     public OpResult SetEnabled(GameInstall game, string name, bool enabled)

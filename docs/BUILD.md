@@ -166,6 +166,17 @@ git push origin v0.5.0
 | `BD2ModManager-<版本>-win-x64.exe` | 唯一发布物；图形界面，自包含单文件，loader 包与解锁插件都已内嵌 |
 | `SHA256SUMS.txt` | 上述 exe 的校验和 |
 
+### `.github/workflows/plugin-release.yml`
+
+插件单独发布，不跟主程序整包走。触发方式：
+
+```bash
+git tag plugin-v1.2.1
+git push origin plugin-v1.2.1
+```
+
+流水线会编译 `BD2SkinUnlock.dll`、跑一遍插件离线验证、生成 `plugin.json` 与 `SHA256SUMS.txt`，再发布到 `plugin-v*` Release。主程序启动时读取仓库里的 `plugin/plugin.json`，只下载并替换插件 DLL；因此发插件版时也要把新的 `plugin/plugin.json` 一起提交到 `main`。
+
 ## 六、常见问题
 
 **`缺少 BepInEx 引用程序集`**

@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "name": "BD2SkinUnlock",
+  "version": "1.2.1",
+  "minAppVersion": "0.8.12",
+  "url": "https://github.com/wwwwwwwwang/bd2-mod-manager/releases/download/plugin-v1.2.1/BD2SkinUnlock.dll",
+  "sha256": "9f9237dac07bb100b74acd857b3aba4472e74ec556881e230a809e9c53c37d66",
+  "size": 55808,
+  "notes": "统一互动、审查、大厅立绘、互动界面恢复与全服装本地镜像；风险模块默认关闭。"
+}

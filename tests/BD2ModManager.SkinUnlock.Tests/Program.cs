@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using FakeGame;
 using HarmonyLib;
@@ -411,6 +412,101 @@ internal static class Program
         InteractionScenes.Rollback(refs);
         Check(!Database.ItemDict.ContainsKey(5001), "退出时补入的场景道具被移除");
         Database.LobbyItems.Clear();
+
+        // ------------------------------------------------------------ 10b. 全部互动
+        Console.WriteLine("10b. 全部互动条目");
+
+        Database.ItemDict.Clear();
+        Database.LobbyItems.Add(new LobbySettingItemTable
+        {
+            Id = 5101, PrestigeSkinId = 2002, InteractionId = 9101, Type = 2, CostumeId = 1001,
+        });
+        Database.LobbyItems.Add(new LobbySettingItemTable
+        {
+            Id = 5102, PrestigeSkinId = 0, InteractionId = 9102, Type = 2, CostumeId = 1001,
+        });
+        Database.LobbyItems.Add(new LobbySettingItemTable
+        {
+            Id = 5103, PrestigeSkinId = 0, InteractionId = 9103, Type = 1, CostumeId = 1001,
+        });
+
+        Eq(InteractionScenes.Inject(refs, true), 3, "全部互动模式补 3 条（含非皮肤互动）");
+        Check(Database.ItemDict.ContainsKey(5101) && Database.ItemDict.ContainsKey(5102) &&
+              Database.ItemDict.ContainsKey(5103), "三条互动道具都进了字典");
+        Eq(InteractionScenes.AllInteractionIds.Count, 2, "心契之约只收 Type=2 的互动");
+        Check(InteractionScenes.AllInteractionIds.Contains(5101) &&
+              InteractionScenes.AllInteractionIds.Contains(5102) &&
+              !InteractionScenes.AllInteractionIds.Contains(5103), "心契之约用 row.Id，且排除非 Type=2");
+
+        var entry5101 = Database.ItemDict[5101];
+        Check(entry5101.Type == 25, "互动道具 Type=25");
+        Check(entry5101.InvenIndex == -105101, "InvenIndex = -(100000 + Id)");
+        Check(entry5101.Count == 1 && entry5101.TimeValue == 0 && entry5101.KeepFlag == 0,
+            "Count / TimeValue / KeepFlag 与游戏互动道具一致");
+
+        Eq(InteractionScenes.Inject(refs, false), 1, "切回仅皮肤模式只保留皮肤场景");
+        Check(Database.ItemDict.ContainsKey(5101) && !Database.ItemDict.ContainsKey(5102) &&
+              !Database.ItemDict.ContainsKey(5103), "非皮肤互动被移出字典");
+
+        InteractionScenes.Rollback(refs);
+        Database.LobbyItems.Clear();
+
+        // ------------------------------------------------------------ 10c. 大厅立绘
+        Console.WriteLine("10c. 大厅立绘映射");
+
+        var portraitState = new SkinState();
+        portraitState.SetSelection(1001, 2002);
+        SkinPatches.State = portraitState;
+        SkinPatches.Active = true;
+        ExtraUnlocks.Configure(true, true, true, false, true, 0);
+
+        var portraitDesign = typeof(ExtraUnlocks).GetMethod(
+            "PortraitDesign_Postfix", BindingFlags.Static | BindingFlags.NonPublic);
+        Check(portraitDesign != null, "找到大厅立绘补丁方法");
+
+        var designArgs = new object[] { 2001 }; // designId 2001 属于 costumeId 1001
+        portraitDesign.Invoke(null, designArgs);
+        Eq((int)designArgs[0], 2002, "大厅立绘映射到当前选择的皮肤");
+
+        ExtraUnlocks.Configure(true, true, true, false, true, 2003);
+        designArgs[0] = 2001;
+        portraitDesign.Invoke(null, designArgs);
+        Eq((int)designArgs[0], 2003, "LobbyDesignId 强制覆盖");
+
+        ExtraUnlocks.Configure(true, true, true, false, true, 0);
+
+        // ------------------------------------------------------------ 10d. 互动门与心契之约
+        Console.WriteLine("10d. 互动门与心契之约");
+
+        ExtraUnlocks.Configure(true, true, true, true, true, 0);
+        Check(RawDataManager.CheckInteractionUnlock(9101), "互动解锁判定被放行");
+        Check(!CensorshipManager.IsCensorship(1), "内容审查被关闭");
+
+        var interactionUi = new SpineInteractionUI();
+        interactionUi.SetUI(0, new List<int> { 999 });
+        Check(SpineInteractionUI.LastIds != null &&
+              SpineInteractionUI.LastIds.Contains(5101) &&
+              !SpineInteractionUI.LastIds.Contains(999), "心契之约列表被替换成全部互动");
+
+        ExtraUnlocks.Configure(true, true, true, false, true, 0);
+
+        // ------------------------------------------------------------ 10e. 全服装本地镜像
+        Console.WriteLine("10e. 全服装本地镜像");
+
+        Database.AddSkinRow(2005, 1003); // 1003 没有进 CostumeDict，模拟未拥有服装
+        var allCatalog = new SkinCatalog();
+        Check(allCatalog.TryBuild(refs, _ => { }, _ => { }), "全服装目录可构建");
+
+        var mirrored = AllCostumes.Apply(refs, allCatalog, true);
+        Eq(mirrored, 1, "补入 1 件未拥有服装");
+        Check(Database.CostumeDict.ContainsKey(1003), "未拥有服装进入本地字典");
+        Eq(Database.CostumeDict[1003].DesignId, 2005, "镜像服装套用第一套皮肤设计");
+        Check(Database.CostumeDict[1003].InvenIndex == 800000000L + 1003,
+            "镜像服装 InvenIndex 使用虚拟区间");
+
+        AllCostumes.Apply(refs, allCatalog, false);
+        Check(!Database.CostumeDict.ContainsKey(1003), "关闭开关后镜像服装被移除");
+        Database.DesignIds.Remove(2005);
 
         // ------------------------------------------------------------ 11. 回滚
 

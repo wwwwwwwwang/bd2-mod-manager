@@ -24,6 +24,20 @@ namespace Suiren.BD2.SkinUnlock
         internal bool TryGetSkins(int costumeId, out List<int> designIds)
             => _byCostume.TryGetValue(costumeId, out designIds);
 
+        /// <summary>全部带皮肤的服装 id（本地镜像用）。</summary>
+        internal IEnumerable<int> CostumeIds => _byCostume.Keys;
+
+        internal bool TryGetFirstDesign(int costumeId, out int designId)
+        {
+            if (_byCostume.TryGetValue(costumeId, out var list) && list.Count > 0)
+            {
+                designId = list[0];
+                return true;
+            }
+            designId = 0;
+            return false;
+        }
+
         /// <summary>
         /// 构建目录。数据表没加载好时返回 false，调用方过一会再试。
         /// </summary>

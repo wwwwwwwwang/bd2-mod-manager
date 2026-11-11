@@ -64,13 +64,34 @@ namespace Suiren.BD2.SkinUnlock
         internal PropertyInfo LobbyId;
         internal PropertyInfo LobbySkinId;        // PrestigeSkinId
         internal PropertyInfo LobbyKind;          // Type（仅用于日志）
+        internal PropertyInfo LobbyInteractionId; // InteractionId（>0 表示互动场景）
+        internal PropertyInfo LobbyCostumeId;     // CostumeId（仅用于日志）
         internal MethodInfo GetAllLobbyItems;     // static () → List<LobbySettingItemTable>
 
         internal Type ItemType;                   // Proto.Net.ItemDBInfo
         internal PropertyInfo ItemId;
         internal PropertyInfo ItemIsNew;
         internal PropertyInfo ItemKind;           // Type，注入时固定写 25
+        internal PropertyInfo ItemInvenIndex;
+        internal PropertyInfo ItemCount;
+        internal PropertyInfo ItemTimeValue;
+        internal PropertyInfo ItemKeepFlag;
         internal FieldInfo ItemDict;              // Dictionary<int, ItemDBInfo>
+
+        // ---- 额外解锁目标（全部为可选，缺失不影响皮肤主功能）----
+        internal MethodInfo InteractionUnlockCheck;   // static bool CheckInteractionUnlock(...)
+        internal Type CensorshipType;
+        internal MethodInfo CensorshipCheck;          // static bool IsCensorship(...)
+        internal Type SpineType;                      // SpineInteractionUI
+        internal MethodInfo SpineSetUI;               // void SetUI(..., List<int>)
+        internal readonly List<PropertyInfo> SpineGateGetters = new List<PropertyInfo>();
+        internal readonly List<MethodInfo> SpineRestoreTargets = new List<MethodInfo>(); // void Xxx(int, int)
+        internal Type DatingFriendsType;
+        internal readonly List<MethodInfo> DatingPredicates = new List<MethodInfo>();
+        internal Type UserDbType;
+        internal PropertyInfo PortraitCostumeId;      // UserDBInfo.UsePortraitCostumeId
+        internal PropertyInfo PortraitDesignId;       // UserDBInfo.UsePortraitCostumeDesignTableID
+        internal string ExtraProblem = "";
 
         internal bool Ready;
         internal string Problem = "";
@@ -489,6 +510,8 @@ namespace Suiren.BD2.SkinUnlock
                 LobbyId = LobbyType.GetProperty("Id");
                 LobbySkinId = LobbyType.GetProperty("PrestigeSkinId");
                 LobbyKind = LobbyType.GetProperty("Type");
+                LobbyInteractionId = LobbyType.GetProperty("InteractionId");
+                LobbyCostumeId = LobbyType.GetProperty("CostumeId");
                 GetAllLobbyItems = FindNoArgListGetter(LobbyType);
 
                 if (LobbyId == null || LobbySkinId == null) missing.Add("LobbySettingItemTable.Id/PrestigeSkinId");
@@ -505,6 +528,10 @@ namespace Suiren.BD2.SkinUnlock
                 ItemId = ItemType.GetProperty("Id");
                 ItemIsNew = ItemType.GetProperty("IsNew");
                 ItemKind = ItemType.GetProperty("Type");
+                ItemInvenIndex = ItemType.GetProperty("InvenIndex");
+                ItemCount = ItemType.GetProperty("Count");
+                ItemTimeValue = ItemType.GetProperty("TimeValue");
+                ItemKeepFlag = ItemType.GetProperty("KeepFlag");
                 ItemDict = FindItemDict();
 
                 if (ItemId == null) missing.Add("ItemDBInfo.Id");
@@ -516,6 +543,149 @@ namespace Suiren.BD2.SkinUnlock
             }
 
             InteractionProblem = missing.Count == 0 ? "" : string.Join("、", missing);
+            ResolveExtraTargets();
+        }
+
+        /// <summary>
+        /// 「心契之约」相关补丁的可选目标：互动解锁判定、审查开关、互动界面布尔门、
+        /// 约会服装谓词、大厅立绘。全部按名字/签名宽松匹配，找不到只记原因。
+        /// </summary>
+        private void ResolveExtraTargets()
+        {
+            var missing = new List<string>();
+
+            InteractionUnlockCheck = FindBoolMethod("CheckInteractionUnlock", 2);
+            if (InteractionUnlockCheck == null) missing.Add("CheckInteractionUnlock");
+
+            CensorshipType = FindType("Proto.Net.CensorshipManager", "CensorshipManager");
+            if (CensorshipType != null)
+                CensorshipCheck = FindBoolMethodOn(CensorshipType, "IsCensorship");
+            if (CensorshipCheck == null) missing.Add("CensorshipManager.IsCensorship");
+
+            UserDbType = FindType("Proto.Net.UserDBInfo", "UserDBInfo");
+            if (UserDbType != null)
+            {
+                PortraitCostumeId = UserDbType.GetProperty("UsePortraitCostumeId");
+                PortraitDesignId = UserDbType.GetProperty("UsePortraitCostumeDesignTableID");
+            }
+            if (PortraitCostumeId == null || PortraitDesignId == null)
+                missing.Add("UserDBInfo 大厅立绘属性");
+
+            SpineType = FindType("SpineInteractionUI", "SpineInteractionUI");
+            if (SpineType != null)
+            {
+                foreach (var m in SpineType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    try
+                    {
+                        if (m.Name != "SetUI") continue;
+                        var ps = m.GetParameters();
+                        if (ps.Length != 2) continue;
+                        if (!ps[1].ParameterType.IsGenericType ||
+                            ps[1].ParameterType.GetGenericTypeDefinition() != typeof(List<>)) continue;
+                        if (ps[1].ParameterType.GetGenericArguments()[0] != typeof(int)) continue;
+                        SpineSetUI = m;
+                        break;
+                    }
+                    catch { }
+                }
+
+                foreach (var p in SpineType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    try
+                    {
+                        if (p.PropertyType != typeof(bool) || p.GetIndexParameters().Length != 0) continue;
+                        var n = p.Name;
+                        if (n.IndexOf("Can", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            n.IndexOf("Interact", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            n.IndexOf("Unlock", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            n.IndexOf("Possible", StringComparison.OrdinalIgnoreCase) >= 0)
+                            SpineGateGetters.Add(p);
+                    }
+                    catch { }
+                }
+
+                // 互动界面刷新方法通常是 void Xxx(int, int)；给它挂一个恢复工具栏的 postfix。
+                foreach (var m in SpineType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    try
+                    {
+                        if (m.ReturnType != typeof(void)) continue;
+                        var ps = m.GetParameters();
+                        if (ps.Length == 2 && ps[0].ParameterType == typeof(int) &&
+                            ps[1].ParameterType == typeof(int))
+                            SpineRestoreTargets.Add(m);
+                    }
+                    catch { }
+                }
+            }
+            // SetUI 与约会谓词属于实验开关，缺失不算基础功能故障；
+            // 需要时由 ExtraUnlocks 在开关打开的情况下补一条 Complaint。
+
+            DatingFriendsType = FindType("DatingFriends", "DatingFriends");
+            if (DatingFriendsType != null)
+            {
+                var nested = new List<Type>();
+                try { nested.AddRange(DatingFriendsType.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)); }
+                catch { }
+                if (nested.Count == 0) nested.Add(DatingFriendsType);
+
+                foreach (var t in nested)
+                {
+                    foreach (var m in t.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                    {
+                        try
+                        {
+                            if (m.ReturnType != typeof(bool)) continue;
+                            var ps = m.GetParameters();
+                            if (ps.Length != 1) continue;
+                            var pn = ps[0].ParameterType.Name;
+                            if (pn.IndexOf("DatingCostumeTable", StringComparison.Ordinal) < 0) continue;
+                            DatingPredicates.Add(m);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            ExtraProblem = missing.Count == 0 ? "" : string.Join("、", missing);
+        }
+
+        private static MethodInfo FindBoolMethod(string name, int maxParameters)
+        {
+            foreach (var asm in SafeAssemblies())
+            {
+                var asmName = asm.GetName().Name ?? "";
+                if (StartsWithAny(asmName, SystemPrefixes)) continue;
+                foreach (var t in SafeTypes(asm))
+                {
+                    if (t == null) continue;
+                    var m = FindBoolMethodOn(t, name, maxParameters);
+                    if (m != null) return m;
+                }
+            }
+            return null;
+        }
+
+        private static MethodInfo FindBoolMethodOn(Type type, string name, int maxParameters = 2)
+        {
+            foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                try
+                {
+                    if (m.ReturnType != typeof(bool)) continue;
+                    if (m.Name != name && m.Name != "get_" + name) continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length > maxParameters) continue;
+                    var ok = true;
+                    foreach (var p in ps)
+                    {
+                        if (p.ParameterType.IsByRef || p.IsOut) { ok = false; break; }
+                    }
+                    if (ok) return m;
+                }
+                catch { }
+            }
+            return null;
         }
 
         /// <summary>静态、无参、返回 <c>List&lt;T&gt;</c> 的方法（GetAllLobbySettingItems 就是这形态）。</summary>
@@ -724,8 +894,11 @@ namespace Suiren.BD2.SkinUnlock
             var skinHost = SkinDict?.DeclaringType?.Name ?? "?";
             var itemHost = ItemDict?.DeclaringType?.Name ?? "?";
             var tower = TowerCostumeDicts.Count == 0 ? ("失败：" + TowerProblem) : (TowerCostumeDicts.Count + " 个");
+            var extra = ExtraProblem.Length == 0
+                ? $"互动门={SpineGateGetters.Count} 约会谓词={DatingPredicates.Count} 互动界面={SpineRestoreTargets.Count}"
+                : ("部分缺失：" + ExtraProblem);
             return $"服装字典 {costumeHost}.{CostumeDict?.Name} / 皮肤字典 {skinHost}.{SkinDict?.Name} / " +
-                   $"道具字典 {itemHost}.{ItemDict?.Name} / 塔字典 {tower}";
+                   $"道具字典 {itemHost}.{ItemDict?.Name} / 塔字典 {tower} / {extra}";
         }
     }
 }

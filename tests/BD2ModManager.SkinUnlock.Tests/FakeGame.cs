@@ -13,6 +13,9 @@ namespace Proto.Net
     {
         public long Id { get; set; }
         public int DesignId { get; set; }
+        public int Level { get; set; }
+        public long InvenIndex { get; set; }
+        public int SortId { get; set; }
 
         // 原版行为：DesignId > 0 才算正在使用皮肤；显示用 ID 在未选皮肤时回落到服装 ID
         public bool IsUsePrestigeSkin => DesignId > 0;
@@ -39,6 +42,23 @@ namespace Proto.Net
         public int Id { get; set; }
         public bool IsNew { get; set; }
         public int Type { get; set; }
+        public long InvenIndex { get; set; }
+        public int Count { get; set; }
+        public long TimeValue { get; set; }
+        public int KeepFlag { get; set; }
+    }
+
+    /// <summary>大厅立绘的两个 getter。插件只改返回值，不碰存档。</summary>
+    public class UserDBInfo
+    {
+        public int UsePortraitCostumeId => 0;
+        public int UsePortraitCostumeDesignTableID => 0;
+    }
+
+    /// <summary>按地区屏蔽内容审查的开关。</summary>
+    public static class CensorshipManager
+    {
+        public static bool IsCensorship(int id) => true;
     }
 }
 
@@ -99,6 +119,8 @@ namespace Proto.Design.common
         public int Id { get; set; }
         public int PrestigeSkinId { get; set; }
         public int Type { get; set; }
+        public int InteractionId { get; set; }
+        public int CostumeId { get; set; }
 
         public static List<LobbySettingItemTable> GetAllLobbySettingItems()
         {
@@ -122,6 +144,9 @@ namespace FakeGame
     public class RawDataManager
     {
         public static RawDataManager Instance { get; } = new RawDataManager();
+
+        /// <summary>原版互动解锁判定；插件补丁应让它恒为 true。</summary>
+        public static bool CheckInteractionUnlock(int interactionId) => false;
 
         public IList GetTableOfIds(TableKind kind, string tableName)
         {
@@ -268,6 +293,44 @@ namespace FakeGame
         {
             TowerCostumeDict.Clear();
             TowerCostumeIndex.Clear();
+        }
+    }
+}
+
+namespace FakeGame
+{
+    using System.Collections.Generic;
+
+    /// <summary>互动界面。插件会把 SetUI 的第二参数换成全部互动 row.Id。</summary>
+    public class SpineInteractionUI
+    {
+        public static List<int> LastIds;
+
+        public void SetUI(int mode, List<int> ids)
+        {
+            LastIds = ids;
+        }
+
+        /// <summary>原版刷新互动界面的入口之一；插件会给它挂恢复工具栏的 postfix。</summary>
+        public void Refresh(int mode, int id)
+        {
+        }
+
+        public bool CanInteract => false;
+        public bool IsUnlocked => false;
+        public bool IsPossible => false;
+    }
+
+    public class DatingCostumeTable
+    {
+    }
+
+    /// <summary>约会服装谓词。真实游戏里是编译器生成的 &lt;&gt;c 嵌套类。</summary>
+    public static class DatingFriends
+    {
+        public static class C
+        {
+            public static bool IsVisible(DatingCostumeTable table) => false;
         }
     }
 }
