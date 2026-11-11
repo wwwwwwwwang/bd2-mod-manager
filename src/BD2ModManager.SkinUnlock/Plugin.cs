@@ -26,7 +26,7 @@ namespace Suiren.BD2.SkinUnlock
     public sealed class SkinUnlockPlugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.suiren.bd2.skinunlock";
-        public const string Version = "1.1.2";
+        public const string Version = "1.1.3";
 
         private static ManualLogSource _log;
 
@@ -50,6 +50,7 @@ namespace Suiren.BD2.SkinUnlock
         private bool _shutdown;
         private int _attempts;
         private int _lastInjected;
+        private int _lastTowerCount = -1;
 
         private int _updateCount;
         private int _renderCount;
@@ -340,10 +341,20 @@ namespace Suiren.BD2.SkinUnlock
                 if (reapplied > 0 && _verbose.Value)
                     LogInfo($"已把 {reapplied} 件服装的选择写回本地数据");
 
-                if (injected > 0 || cleaned > 0 || scenes > 0 || reapplied > 0)
+                // 救赎之塔每收到一次服务器信息就会重建自己的服装镜像，选择要反复补
+                var tower = _state.ReapplyTowerSelection(_refs);
+                if (tower > 0 && _verbose.Value)
+                    LogInfo($"已把 {tower} 件塔内服装的选择写回镜像");
+
+                var towerCount = _refs.TowerCostumeCount();
+                if (towerCount > 0 && towerCount != _lastTowerCount)
+                    Diag.Note($"救赎之塔服装镜像已建立：{towerCount} 件（本轮回放 {tower} 件）");
+                _lastTowerCount = towerCount;
+
+                if (injected > 0 || cleaned > 0 || scenes > 0 || reapplied > 0 || tower > 0)
                 {
                     Diag.Note($"巡检：注入={injected}(共{_state.InjectedCount}) 清理={cleaned} " +
-                              $"场景={scenes}(共{InteractionScenes.InjectedCount}) 回放={reapplied}");
+                              $"场景={scenes}(共{InteractionScenes.InjectedCount}) 回放={reapplied} 塔衣={towerCount} 塔同步={tower}");
                 }
 
                 if (_verbose.Value)

@@ -50,6 +50,7 @@ internal static class Program
     private static int Run()
     {
         Database.Reset();
+        RogueLikeManager.Reset();
 
         // 设计表：服装 1001 有三套皮肤，服装 1002 有一套
         Database.AddSkinRow(2001, 1001);
@@ -131,14 +132,14 @@ internal static class Program
 
         var harmony = new Harmony("com.suiren.bd2.skinunlock.test");
         var mounted = SkinPatches.Install(harmony, refs);
-        var realPatch = mounted == 4;
+        var realPatch = mounted >= 4;
 
         // 无论挂没挂上，Install 都不能把持有它的插件带崩
         Check(mounted >= 0, "挂载过程没有抛异常穿过补丁层");
 
         if (realPatch)
         {
-            Ok("四个补丁都挂到了真实方法上");
+            Ok("基础补丁与塔补丁都挂到了真实方法上");
         }
         else
         {
@@ -210,6 +211,47 @@ internal static class Program
         Eq(state.ReapplySelection(refs), 1, "回放 1 件服装的选择");
         Eq(costume1.DesignId, 2002, "选择被写回 2002");
         Eq(state.ReapplySelection(refs), 0, "值已经对了就不再写");
+
+        // ------------------------------------------------------------ 6.5 塔内镜像
+
+        Console.WriteLine("6.5 救赎之塔镜像");
+        Check(refs.TowerCostumeDicts.Count == 1 && refs.TowerCostumeAdds.Count >= 1,
+            "反射解析拿到塔服装字典与插入方法");
+
+        // 先验证真实 Harmony 的 postfix 在插入时就会生效（object __0 的绑定）
+        var harmonyTower = new CostumeDBInfo { Id = 1001, DesignId = 0 };
+        RogueLikeManager.Reset();
+        RogueLikeManager.AddTowerCostume(harmonyTower);
+        if (realPatch)
+        {
+            Eq(harmonyTower.DesignId, 2002, "真实 Harmony 的塔服装 postfix 在插入时生效");
+            Check(harmonyTower.IsUsePrestigeSkin, "塔内 UI 的 IsUsePrestigeSkin 变为 true");
+            Eq(harmonyTower.CostumeDesignId, 2002, "塔内 UI 读到的 CostumeDesignId 是 2002");
+        }
+
+        var towerCostume = new CostumeDBInfo { Id = 1001, DesignId = 0 };
+        // 临时关掉补丁，专门验证「周期回放」这条兜底路径；否则 AddTowerCostume
+        // 的 postfix 会先把选择写好，这里就测不到 ReapplyTowerSelection 了。
+        RogueLikeManager.Reset();
+        SkinPatches.Active = false;
+        RogueLikeManager.AddTowerCostume(towerCostume);
+        SkinPatches.Active = true;
+        Eq(state.ReapplyTowerSelection(refs), 1, "塔内镜像写回 1 件服装");
+        Eq(towerCostume.DesignId, 2002, "塔内镜像的 DesignId 变成 2002");
+        Eq(state.ReapplyTowerSelection(refs), 0, "塔内值正确后不重复写");
+
+        // 塔信息响应会清空并重建字典：模拟新对象再走补丁入口
+        var rebuilt = new CostumeDBInfo { Id = 1001, DesignId = 0 };
+        RogueLikeManager.Reset();
+        RogueLikeManager.AddTowerCostume(rebuilt);
+        if (realPatch)
+            Eq(rebuilt.DesignId, 2002, "塔信息重建时真实 Harmony postfix 也生效");
+
+        var towerPostfix = typeof(SkinPatches).GetMethod(
+            "TowerCostume_Postfix", BindingFlags.Static | BindingFlags.NonPublic);
+        Check(towerPostfix != null, "塔服装补丁方法存在");
+        towerPostfix.Invoke(null, new object[] { rebuilt });
+        Eq(rebuilt.DesignId, 2002, "塔信息重建后补丁入口把选择套回新对象");
 
         // ------------------------------------------------------------ 7. 取消
 

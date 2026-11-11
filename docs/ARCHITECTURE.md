@@ -224,7 +224,7 @@ GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时
 | 项目 | 覆盖 |
 |---|---|
 | `tests/BD2ModManager.Core.Tests` | 残留识别 / 清理、装完再卸、目录回收、组件安装 / 开关 / 移除、开关改名后旧路径失效 |
-| `tests/BD2ModManager.SkinUnlock.Tests` | 反射解析、设计表读取、注入、列表补全、点击拦截、选择回放、取消 / 回滚、撤销补丁、贴图超时兜底、默认皮肤拦截、大厅场景；62 项检查 |
+| `tests/BD2ModManager.SkinUnlock.Tests` | 反射解析、设计表读取、注入、列表补全、点击拦截、选择回放、取消 / 回滚、撤销补丁、贴图超时兜底、默认皮肤拦截、大厅场景、救赎之塔镜像；85 项检查 |
 
 运行方式：
 
@@ -240,4 +240,4 @@ CI 在 GitHub Actions 的 Linux runner 上跑真实的 Harmony 挂载；Windows 
 - **加 CLI 命令**：在 `src/BD2ModManager.Cli/Program.cs` 的 `switch` 里加分派，逻辑落到 Core，不要在 CLI 里直接操作文件。
 - **加 GUI 卡片**：在 `MainWindow.axaml` 加布局，在 `MainViewModel` 加绑定属性与命令；耗时操作保持 `async` + `Dispatcher` 回 UI 线程。
 - **加包来源**：扩展 `LoaderPackage`，统一返回已解开的目录；`LoaderInstaller` 不需要知道来源是 zip 还是内嵌资源。
-- **改插件**：先读 [PLUGIN_SKIN_UNLOCK.md](PLUGIN_SKIN_UNLOCK.md)，再改 `src/BD2ModManager.SkinUnlock/`；改完必须跑 62 项离线验证。
+- **改插件**：先读 [PLUGIN_SKIN_UNLOCK.md](PLUGIN_SKIN_UNLOCK.md)，再改 `src/BD2ModManager.SkinUnlock/`；改完必须跑 85 项离线验证。

@@ -60,12 +60,13 @@ namespace Suiren.BD2.SkinUnlock
                 DetectKeyType(dict);
             }
 
-            var costumes = r.GetCostumeDict();
-            if (costumes == null || costumes.Count == 0) return 0;
+            var costumes = r.GetAllCostumeDicts();
+            if (costumes.Count == 0) return 0;
 
             var added = 0;
 
-            foreach (var costume in costumes.Values)
+            foreach (var costumeDict in costumes)
+            foreach (var costume in costumeDict.Values)
             {
                 if (costume == null) continue;
 
@@ -335,6 +336,49 @@ namespace Suiren.BD2.SkinUnlock
             return changed;
         }
 
+        /// <summary>
+        /// 把单件服装的选择套到塔内镜像上。塔里的 CostumeDBInfo 是服务器每局
+        /// 重新下发的独立对象，不改它的话 IsUsePrestigeSkin 永远是 false。
+        /// </summary>
+        internal bool ApplyTowerCostume(GameRefs r, object costume)
+        {
+            if (r == null || !r.Ready || costume == null || _selection.Count == 0) return false;
+
+            try
+            {
+                var costumeId = Convert.ToInt32(r.CostumeId.GetValue(costume, null));
+                if (!_selection.TryGetValue(costumeId, out var want)) return false;
+
+                var now = Convert.ToInt32(r.CostumeDesignId.GetValue(costume, null));
+                if (now == want) return false;
+
+                r.CostumeDesignId.SetValue(costume, want, null);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// 服务器每次下发塔信息都会清空并重建塔字典，所以选择要反复回放。
+        /// 返回本轮真正改写的件数，用于日志判断补丁有没有接上。
+        /// </summary>
+        internal int ReapplyTowerSelection(GameRefs r)
+        {
+            if (r == null || !r.Ready || _selection.Count == 0) return 0;
+
+            var changed = 0;
+
+            foreach (var dict in r.GetTowerCostumeDicts())
+            {
+                foreach (var costume in dict.Values)
+                {
+                    if (ApplyTowerCostume(r, costume)) changed++;
+                }
+            }
+
+            return changed;
+        }
+
         // ------------------------------------------------------------ 用户点选
 
         /// <summary>
@@ -393,6 +437,10 @@ namespace Suiren.BD2.SkinUnlock
                 }
 
                 SetSelection(costumeId, isSet ? designId : 0);
+
+                // 塔里的镜像对象也要立刻跟着变（如果当前正在塔内）
+                ReapplyTowerSelection(r);
+
                 return true;
             }
             catch

@@ -79,7 +79,7 @@ BepInEx/SkinUnlock.probe.log
 
 插件编译期为 `netstandard2.0`，只引用 BepInEx、HarmonyX 与 UnityEngine 的编译引用，**不引用游戏程序集**。贴图回调处刻意不依赖 `Sprite` 类型，通过运行时类型 + 泛型闭包委托处理。游戏内部结构全部走反射，改结构时最多是功能失效，不会导致程序集加载失败。
 
-### 四个 Harmony 补丁
+### 六个 Harmony 补丁
 
 | 补丁 | 目标 | 作用 |
 |---|---|---|
@@ -87,8 +87,20 @@ BepInEx/SkinUnlock.probe.log
 | `SetSkin_Prefix` | `Database.SetSkin` | 拦下点击，记录本地选择，跳过服务器请求 |
 | `AddSkin_Prefix` | `Database.AddPrestigeSkinDBInfo` | 拦下 `designId=0` / 表里没有的写入 |
 | `LoadTexture_Prefix` | `SkinExchangePopupUI.LoadTexture` | 包装回调，0.5 秒未回调补 `null` |
+| `TowerCostume_Postfix` ×2 | 救赎之塔（RogueLike）服装字典的两个单参插入方法 | 塔内每件服装写入后立即套用本地皮肤选择 |
 
 大厅互动场景不靠补丁，而是在周期巡检里把 `LobbySettingItemTable` 的道具补进 `ItemDBInfo`，同样记账以便回滚。
+
+### 救赎之塔（RogueLike）
+
+救赎之塔使用独立的一套服装镜像：`RogueLikeManager` 里的 `Dictionary<long, CostumeDBInfo>`，每次收到 `EvilCastleRogueLikeInfoResponse` 都会清空重建，服务器下发的 `DesignId` 是 0。普通模式改的是全局服装字典，塔内读不到，所以 1.1.2 及以前在塔里不生效。
+
+1.1.3 起：
+
+1. 插件按「同时含 `Dictionary<long, CostumeDBInfo>` 与 `Dictionary<int, List<CostumeDBInfo>>` 静态字段」识别塔管理类；
+2. 给它的两个单参插入方法挂 postfix，每件塔内服装一入字典就把选择表里的 `designId` 写进去；
+3. 周期巡检再遍历塔字典回放一次，覆盖服务器后续同步；
+4. 探针日志会显示 `塔字典 N 个`；进塔后还会打印 `救赎之塔服装镜像已建立：N 件`，巡检行的 `塔衣=N`、`塔同步=N` 应大于 0。
 
 ### 为 BD2 做的两个特殊处理
 
@@ -110,7 +122,7 @@ BepInEx/SkinUnlock.probe.log
 
 ## 五、验证到哪一步
 
-### 离线验证（62 项）
+### 离线验证（85 项）
 
 `tests/BD2ModManager.SkinUnlock.Tests` 用一套假游戏结构（`Proto.Net.CostumeDBInfo` / `Proto.Net.PrestigeSkinDBInfo` / `Proto.Design.common.PrestigeSkinTable` / `RawDataManager`，字段布局按真实客户端摆）把整条链路跑一遍：
 
@@ -127,20 +139,21 @@ dotnet run --project tests/BD2ModManager.SkinUnlock.Tests -c Release
 - 撤销补丁；
 - 贴图正常回调 / 超时补 `null`；
 - `designId=0` 与未知 id 的拦截；
-- 大厅互动场景的注入与回滚。
+- 大厅互动场景的注入与回滚；
+- 救赎之塔字典解析、塔服装 postfix 套用与周期回放。
 
-CI 在 GitHub Actions 上跑真实 Harmony 挂载（不是直接调用补丁方法），四个补丁都挂到真实方法上：
+CI 在 GitHub Actions 上跑真实 Harmony 挂载（不是直接调用补丁方法），六个补丁都挂到真实方法上：
 
 ```
 log  补丁已挂上：查询服装皮肤 → CostumeDBInfo.GetConnectedPrestigeSkinDBInfos
 log  补丁已挂上：切换皮肤 → Database.SetSkin
-[OK] 四个补丁都挂到了真实方法上
-全部通过：62 项检查。
+[OK] 六个补丁都挂到了真实方法上
+全部通过：85 项检查。
 ```
 
 ### 真机验证
 
-真机测试中补出了 **16 件服装对应的 16 套皮肤与 10 个大厅互动场景**，玩家确认未拥有的皮肤出现在「更换皮肤」弹窗里。
+真机测试中补出了 **17 件服装对应的 17 套皮肤与 10 个大厅互动场景**，玩家确认未拥有的皮肤出现在「更换皮肤」弹窗里。1.1.3 真机启动日志确认 `塔字典 1 个`、`补丁挂上 6 个`；2026-11-11 进入救赎之塔实测通过，日志出现 `救赎之塔服装镜像已建立：7 件`，玩家确认塔内皮肤已生效。
 
 ### 没有覆盖的部分
 
@@ -150,7 +163,8 @@ log  补丁已挂上：切换皮肤 → Database.SetSkin
 
 | 现象 | 排查 |
 |---|---|
-| 游戏里完全没效果 | 先看 `BepInEx/SkinUnlock.probe.log`：确认 `Awake` 是否执行、补丁挂载数是否为 4、卡在哪一步 |
+| 游戏里完全没效果 | 先看 `BepInEx/SkinUnlock.probe.log`：确认 `Awake` 是否执行、补丁挂载数是否为 6、卡在哪一步 |
+| 只有救赎之塔没效果 | 看日志是否有 `塔字典 1 个`；进塔后巡检行的 `塔同步` 是否大于 0。若为 0，说明塔服装插入方法没被调用或没挂上 |
 | 日志里没有插件输出 | 可能是 BepInEx 日志通道被杀软短暂独占；探针日志是绕开 BepInEx 直接写文件的，以它为准 |
 | 装完提示两个解锁插件 | 到 `BepInEx/plugins` 下禁用/删除旧插件，只保留 `BD2SkinUnlock` |
 | 改了 `Enabled` 没变化 | 需要重启游戏 |

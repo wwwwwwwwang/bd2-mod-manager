@@ -14,6 +14,10 @@ namespace Proto.Net
         public long Id { get; set; }
         public int DesignId { get; set; }
 
+        // 原版行为：DesignId > 0 才算正在使用皮肤；显示用 ID 在未选皮肤时回落到服装 ID
+        public bool IsUsePrestigeSkin => DesignId > 0;
+        public int CostumeDesignId => DesignId != 0 ? DesignId : (int)Id;
+
         /// <summary>玩家实际买过的皮肤（服务端下发的那份）。</summary>
         public HashSet<int> OwnedDesigns { get; } = new HashSet<int>();
 
@@ -222,6 +226,48 @@ namespace FakeGame
         public static void AddPrestigeSkinDBInfo(PrestigeSkinDBInfo info, bool fromServer)
         {
             if (info != null) SkinDict[info.CostumeDesignId] = info;
+        }
+    }
+}
+
+namespace FakeGame
+{
+    using Proto.Net;
+
+    /// <summary>
+    /// 救赎之塔（EvilCastle Roguelike）的塔管理器假实现。
+    /// 布局照抄游戏：一个按 InvenIndex 的主字典 + 一个按 Costume Id 的分组索引；
+    /// 这两个字段同时存在，插件才会把它认成塔镜像。
+    /// </summary>
+    public static class RogueLikeManager
+    {
+        public static readonly Dictionary<long, CostumeDBInfo> TowerCostumeDict =
+            new Dictionary<long, CostumeDBInfo>();
+
+        public static readonly Dictionary<int, List<CostumeDBInfo>> TowerCostumeIndex =
+            new Dictionary<int, List<CostumeDBInfo>>();
+
+        public static void AddTowerCostume(CostumeDBInfo costume)
+        {
+            if (costume == null) return;
+            TowerCostumeDict[costume.Id] = costume;
+        }
+
+        public static void IndexTowerCostume(CostumeDBInfo costume)
+        {
+            if (costume == null) return;
+            if (!TowerCostumeIndex.TryGetValue((int)costume.Id, out var list))
+            {
+                list = new List<CostumeDBInfo>();
+                TowerCostumeIndex[(int)costume.Id] = list;
+            }
+            list.Add(costume);
+        }
+
+        public static void Reset()
+        {
+            TowerCostumeDict.Clear();
+            TowerCostumeIndex.Clear();
         }
     }
 }

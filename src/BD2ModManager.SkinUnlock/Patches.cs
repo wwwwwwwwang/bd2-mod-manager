@@ -76,6 +76,28 @@ namespace Suiren.BD2.SkinUnlock
                 Complaint("没找到 AddPrestigeSkinDBInfo，默认皮肤条目不会被拦下");
             }
 
+            if (r.TowerCostumeAdds.Count > 0)
+            {
+                var towerPatched = 0;
+
+                // 塔管理类上通常有两个单参插入方法：一个写主字典、一个建 Id 分组索引。
+                // 两个都挂 postfix，谁先跑都能把选择套上去。
+                foreach (var add in r.TowerCostumeAdds)
+                {
+                    if (TryPatch(harmony, add, nameof(TowerCostume_Postfix), false, "救赎之塔服装"))
+                        towerPatched++;
+                }
+
+                installed += towerPatched;
+
+                if (towerPatched == 0)
+                    Complaint("救赎之塔服装插入方法补丁全部失败，塔内皮肤不会生效");
+            }
+            else
+            {
+                Complaint("没找到救赎之塔的服装插入方法（" + r.TowerProblem + "），塔内皮肤不会生效");
+            }
+
             if (r.LoadTexture != null)
             {
                 if (TryPatch(harmony, r.LoadTexture, nameof(LoadTexture_Prefix), true, "贴图回调兜底"))
@@ -237,6 +259,26 @@ namespace Suiren.BD2.SkinUnlock
             catch (Exception e)
             {
                 Complaint("补全皮肤列表失败：" + e.Message);
+            }
+        }
+
+        // ------------------------------------------------------------ 救赎之塔服装镜像
+
+        /// <summary>
+        /// 塔管理类把服务器下发的每件服装写进自己的镜像字典时，顺手把本地选择套上去。
+        /// 这样塔内首次打开列表就是对的，不用等下一轮巡检。
+        /// </summary>
+        private static void TowerCostume_Postfix(object __0)
+        {
+            if (!Active || __0 == null) return;
+
+            try
+            {
+                State?.ApplyTowerCostume(Refs, __0);
+            }
+            catch (Exception e)
+            {
+                Complaint("同步救赎之塔服装失败：" + e.Message);
             }
         }
 

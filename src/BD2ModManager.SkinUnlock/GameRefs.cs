@@ -28,6 +28,13 @@ namespace Suiren.BD2.SkinUnlock
         internal PropertyInfo CostumeDesignId;    // 当前穿的 designId
         internal FieldInfo CostumeDict;           // Dictionary<long, CostumeDBInfo>
 
+        // ---- 救赎之塔（EvilCastle Roguelike）的独立服装镜像 ----
+        // 塔内不用上面那本全局字典，而是每局由服务器响应重建的一份独立字典。
+        // 只有把选择同步进去，塔里的立绘/皮肤名才会生效。
+        internal List<FieldInfo> TowerCostumeDicts = new List<FieldInfo>();
+        internal List<MethodInfo> TowerCostumeAdds = new List<MethodInfo>();
+        internal string TowerProblem = "";
+
         // ---- 皮肤库 ----
         internal Type SkinType;
         internal PropertyInfo SkinCostumeId;      // designId → 属于哪个 costumeId
@@ -99,6 +106,10 @@ namespace Suiren.BD2.SkinUnlock
                 Step = "服装字典";
                 CostumeDict = FindStaticDict(CostumeType);
                 if (CostumeDict == null) return Fail("找不到存放 CostumeDBInfo 的静态字典");
+
+                // 塔字典属于锦上添花：找不到时主功能照常工作
+                Step = "救赎之塔服装字典";
+                ResolveTower();
 
                 Step = "PrestigeSkinDBInfo";
                 SkinType = FindType("Proto.Net.PrestigeSkinDBInfo", "PrestigeSkinDBInfo");
@@ -190,6 +201,91 @@ namespace Suiren.BD2.SkinUnlock
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// 救赎之塔的服装镜像。塔管理类上同时有：
+        ///   Dictionary&lt;long, CostumeDBInfo&gt;（按 InvenIndex 索引）
+        ///   Dictionary&lt;int, List&lt;CostumeDBInfo&gt;&gt;（按服装 Id 分组）
+        /// 普通模式的全局字典没有第二个字段，因此可以安全区分。
+        /// 解析失败只影响塔内效果，不阻断主功能。
+        /// </summary>
+        private void ResolveTower()
+        {
+            TowerCostumeDicts.Clear();
+            TowerCostumeAdds.Clear();
+            TowerProblem = "";
+
+            var listType = typeof(List<>).MakeGenericType(CostumeType);
+
+            foreach (var asm in SafeAssemblies())
+            {
+                var asmName = asm.GetName().Name ?? "";
+                if (StartsWithAny(asmName, SystemPrefixes)) continue;
+
+                foreach (var t in SafeTypes(asm))
+                {
+                    if (t == null) continue;
+
+                    FieldInfo[] fields;
+                    try { fields = t.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic); }
+                    catch { continue; }
+
+                    var mains = new List<FieldInfo>();
+                    var hasIndex = false;
+
+                    foreach (var f in fields)
+                    {
+                        try
+                        {
+                            if (!typeof(IDictionary).IsAssignableFrom(f.FieldType)) continue;
+                            if (!f.FieldType.IsGenericType) continue;
+
+                            var args = f.FieldType.GetGenericArguments();
+                            if (args.Length != 2) continue;
+
+                            if (args[0] == typeof(long) && args[1] == CostumeType && f != CostumeDict)
+                                mains.Add(f);
+                            else if (args[0] == typeof(int) && args[1] == listType)
+                                hasIndex = true;
+                        }
+                        catch { }
+                    }
+
+                    if (mains.Count == 0 || !hasIndex) continue;
+
+                    foreach (var f in mains)
+                    {
+                        try
+                        {
+                            if (f.GetValue(null) is IDictionary && !TowerCostumeDicts.Contains(f))
+                                TowerCostumeDicts.Add(f);
+                        }
+                        catch { }
+                    }
+
+                    MethodInfo[] methods;
+                    try { methods = t.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic); }
+                    catch { continue; }
+
+                    foreach (var m in methods)
+                    {
+                        try
+                        {
+                            if (m.ReturnType != typeof(void)) continue;
+                            var ps = m.GetParameters();
+                            if (ps.Length != 1 || ps[0].ParameterType != CostumeType) continue;
+                            if (!TowerCostumeAdds.Contains(m)) TowerCostumeAdds.Add(m);
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            if (TowerCostumeDicts.Count == 0)
+                TowerProblem = "找不到救赎之塔的独立服装字典";
+            else if (TowerCostumeAdds.Count == 0)
+                TowerProblem = "找到塔服装字典，但没有找到插入方法";
         }
 
         /// <summary>
@@ -551,6 +647,40 @@ namespace Suiren.BD2.SkinUnlock
         /// <summary>当前皮肤字典实例。游戏重新加载数据时会换成新对象，用它判断是否需要重建注入。</summary>
         internal IDictionary GetSkinDict() => SafeGet(SkinDict);
         internal IDictionary GetCostumeDict() => SafeGet(CostumeDict);
+
+        /// <summary>救赎之塔每局重建的服装字典列表（可能为空）。</summary>
+        internal List<IDictionary> GetTowerCostumeDicts()
+        {
+            var result = new List<IDictionary>();
+            foreach (var f in TowerCostumeDicts)
+            {
+                var dict = SafeGet(f);
+                if (dict != null) result.Add(dict);
+            }
+            return result;
+        }
+
+        /// <summary>全局服装字典 + 塔内服装字典，供注入/回放时统一遍历。</summary>
+        internal List<IDictionary> GetAllCostumeDicts()
+        {
+            var result = new List<IDictionary>();
+            var main = SafeGet(CostumeDict);
+            if (main != null) result.Add(main);
+            result.AddRange(GetTowerCostumeDicts());
+            return result;
+        }
+
+        /// <summary>塔内当前镜像的服装件数；没进塔时为 0，用于排查。</summary>
+        internal int TowerCostumeCount()
+        {
+            var total = 0;
+            foreach (var dict in GetTowerCostumeDicts())
+            {
+                try { total += dict.Count; }
+                catch { }
+            }
+            return total;
+        }
         internal IDictionary GetItemDict() => SafeGet(ItemDict);
 
         /// <summary>
@@ -593,7 +723,9 @@ namespace Suiren.BD2.SkinUnlock
             var costumeHost = CostumeDict?.DeclaringType?.Name ?? "?";
             var skinHost = SkinDict?.DeclaringType?.Name ?? "?";
             var itemHost = ItemDict?.DeclaringType?.Name ?? "?";
-            return $"服装字典 {costumeHost}.{CostumeDict?.Name} / 皮肤字典 {skinHost}.{SkinDict?.Name} / 道具字典 {itemHost}.{ItemDict?.Name}";
+            var tower = TowerCostumeDicts.Count == 0 ? ("失败：" + TowerProblem) : (TowerCostumeDicts.Count + " 个");
+            return $"服装字典 {costumeHost}.{CostumeDict?.Name} / 皮肤字典 {skinHost}.{SkinDict?.Name} / " +
+                   $"道具字典 {itemHost}.{ItemDict?.Name} / 塔字典 {tower}";
         }
     }
 }
