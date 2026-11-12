@@ -4,7 +4,7 @@
   "version": "1.2.1",
   "minAppVersion": "0.8.12",
   "url": "https://github.com/wwwwwwwwang/bd2-mod-manager/releases/download/plugin-v1.2.1/BD2SkinUnlock.dll",
-  "sha256": "9f9237dac07bb100b74acd857b3aba4472e74ec556881e230a809e9c53c37d66",
+  "sha256": "41f748e6a750f1e32196b5f9252f8f46c63b09a32f9b00022bf103ab7bfd6a1c",
   "size": 55808,
-  "notes": "统一互动、审查、大厅立绘、互动界面恢复与全服装本地镜像；风险模块默认关闭。"
+  "notes": "插件独立更新：不重新下载主程序。"
 }
