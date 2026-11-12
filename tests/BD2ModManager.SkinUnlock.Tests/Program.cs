@@ -479,14 +479,29 @@ internal static class Program
         Console.WriteLine("10d. 互动门与心契之约");
 
         ExtraUnlocks.Configure(true, true, true, true, true, 0);
-        Check(RawDataManager.CheckInteractionUnlock(9101), "互动解锁判定被放行");
-        Check(!CensorshipManager.IsCensorship(1), "内容审查被关闭");
 
-        var interactionUi = new SpineInteractionUI();
-        interactionUi.SetUI(0, new List<int> { 999 });
-        Check(SpineInteractionUI.LastIds != null &&
-              SpineInteractionUI.LastIds.Contains(5101) &&
-              !SpineInteractionUI.LastIds.Contains(999), "心契之约列表被替换成全部互动");
+        // CI（Linux）上 HarmonyX 的 exhelper 加载不了，真实补丁挂不上；
+        // 这里按 Harmony 的调用约定直接调用补丁方法，保证行为本身始终被测到。
+        var unlockPostfix = typeof(ExtraUnlocks).GetMethod(
+            "UnlockCheck_Postfix", BindingFlags.Static | BindingFlags.NonPublic);
+        var unlockArgs = new object[] { false };
+        unlockPostfix.Invoke(null, unlockArgs);
+        Check((bool)unlockArgs[0], "互动解锁判定被放行");
+
+        var censorshipPostfix = typeof(ExtraUnlocks).GetMethod(
+            "Censorship_Postfix", BindingFlags.Static | BindingFlags.NonPublic);
+        var censorshipArgs = new object[] { true };
+        censorshipPostfix.Invoke(null, censorshipArgs);
+        Check(!(bool)censorshipArgs[0], "内容审查被关闭");
+
+        // 10b 已把 5101/5102 收集到 AllInteractionIds。
+        var spinePrefix = typeof(ExtraUnlocks).GetMethod(
+            "SpineSetUI_Prefix", BindingFlags.Static | BindingFlags.NonPublic);
+        var uiArgs = new object[] { new List<int> { 999 } };
+        spinePrefix.Invoke(null, uiArgs);
+        var replacedIds = (List<int>)uiArgs[0];
+        Check(replacedIds.Contains(5101) && !replacedIds.Contains(999),
+            "心契之约列表被替换成全部互动");
 
         ExtraUnlocks.Configure(true, true, true, false, true, 0);
 
