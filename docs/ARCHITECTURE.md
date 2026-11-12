@@ -156,21 +156,26 @@ GUI：用户选择目录；CLI：也可以直接传 .zip
 
 ### GUI
 
-`BD2ModManager.Gui` 使用 Avalonia 11.3.22，`net8.0`，发布为 win-x64 自包含单文件。界面是 380×500 的固定小窗口，主卡片只保留：
+`BD2ModManager.Gui` 使用 Avalonia 11.3.22，`net8.0`，发布为 win-x64 自包含单文件。主界面是 840×520 的可缩放 Windows 11 Fluent 窗口（最小 760×480，无系统边框）：
 
-- 顶部品牌栏：版本、最小化、关闭；
-- 中央环形开关：打开时安装 loader 与内置解锁插件，关闭时移除两者并还原；
-- 底部两个胶囊：按需展开「目录与环境」和「运行日志」抽屉。
+- 自定义标题栏：logo、标题、版本、最小化、关闭；
+- 左侧导航：总览 / 游戏与 Loader / 解锁模块 / 诊断与日志；
+- 总览页：一键启用（电源按钮 + 游戏目录）、模块状态、最近一次操作、诊断包、插件独立更新；
+- 「游戏位置」与「运行日志」为居中弹层；「功能模块」「免责声明」为独立窗口，统一使用 `Border.dialog` / `Border.section`、`#0F6CBD` 强调色与 12–16 px 圆角；
+- 全局主题与控件样式集中在 `App.axaml`，不引入额外 UI 依赖。
 
-第三方组件和单插件开关的 Core 能力仍保留在 `ComponentManager` / CLI 中，但不在一键解锁 GUI 里展示。
+第三方组件和单插件开关的 Core 能力仍保留在 `ComponentManager` / CLI 中，但不在总览页直接展示。
 
 代码分工：
 
 | 文件 | 职责 |
 |---|---|
-| `App.axaml` / `App.axaml.cs` | 应用入口、主题与资源 |
-| `MainWindow.axaml` / `.axaml.cs` | 布局、绑定、日志滚动、确认框 |
-| `MainViewModel.cs` | 状态、命令、异步操作、日志、探测与刷新 |
+| `App.axaml` / `App.axaml.cs` | 应用入口、Fluent 主题资源、首次免责声明与主窗口启动 |
+| `MainWindow.axaml` / `.axaml.cs` | 主界面布局、导航、总览卡片、路径/日志弹层、日志滚动与确认浮层 |
+| `MainViewModel.cs` | 状态、命令、异步操作、日志、探测、模块状态与刷新 |
+| `DisclaimerWindow.axaml` / `.axaml.cs` | 首次启动的功能说明、免责声明与模块勾选 |
+| `ModulesWindow.axaml` / `.axaml.cs` | 主界面的功能模块设置面板 |
+| `RiskConfirmation.cs` | 高风险模块二次确认对话框 |
 | `UpdateChecker.cs` | GitHub Release 版本检查，启动时请求；API 失败时用发布页重定向兜底，最后才回退缓存；读取 asset digest 供本地校验，只读元数据 |
 | `AutoUpdater.cs` | 下载官方 exe 到程序所在目录（可改）；优先用 Release digest 校验，否则下载 `SHA256SUMS.txt`；显示校验阶段并替换当前程序重启 |
 | `Commands.cs` | `RelayCommand`、`PluginItem`、`ComponentItem` 等绑定对象 |
@@ -184,8 +189,8 @@ GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时
 1. **内容区必须关横向滚动**：`HorizontalScrollBarVisibility="Disabled"`。设为 `Auto` 时测量宽度无限，卡片内 `TextWrapping` 失效，文字会把卡片撑破。
 2. **内容区必须裁切**：外层 `Border ClipToBounds="True"`。`ScrollViewer` 不保证挡住溢出内容，滚不下的卡片会画到下面的日志卡片上。
 3. **日志区不能抢焦点**：不要给只读 `TextBox` 设 `CaretIndex`。Avalonia 会让它进入输入态、抢走焦点，之后所有开关点击都收不到（0.2–0.4.1 的「哑巴 bug」）。
-4. **日志区不用 `ScrollIntoView`**：它会冒泡，把抽屉外层也带着滚。
-5. **日志高度取行高整数倍**：当前抽屉里的 `ListBox` 高 216 = 12 × 18；边框与内边距放在外层 `Border`，否则视口会出现非整数倍，滚到底时上下各露半行。
+4. **日志区不用 `ScrollIntoView`**：它会冒泡，把弹层外层也带着滚。
+5. **日志高度取行高整数倍**：当前日志弹层里的 `ListBox` 高 320；边框与内边距放在外层 `Border`，否则视口会出现非整数倍，滚到底时上下各露半行。
 6. **滚动只滚日志列表内部的 `ScrollViewer`**：`ScrollToEnd()` 在后台优先级执行，不碰光标与选区。
 
 ### 首次启动与功能模块
@@ -205,7 +210,7 @@ GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时
 
 导出时把状态目录、用户目录和用户名替换为 `%APPDATA%`、`%USERPROFILE%`、`%USER%`，可直接附在公开 issue。自动检查覆盖：loader 是否完整/仅残留、是否有多个解锁插件、插件同名多份、日志末尾是否命中异常关键字、`BepInEx.cfg` 是否尚未生成。
 
-GUI 的入口在「目录与环境」抽屉（清理残留按钮右侧）；CLI 为 `bd2mm diag [游戏目录] [--out 目录]`。
+GUI 的入口在「游戏位置」弹层底部（清理残留 / 功能模块 / 诊断包）；CLI 为 `bd2mm diag [游戏目录] [--out 目录]`。
 
 ### 插件独立更新（PluginUpdate）
 
