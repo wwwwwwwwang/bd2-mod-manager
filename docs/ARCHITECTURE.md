@@ -44,7 +44,8 @@ BD2ModManager/
 ├── .github/workflows/
 │   ├── ci.yml                   # push / PR：编译与打包校验
 │   ├── auto-tag.yml             # CI 通过后自动打 v<版本> 标签并触发发布
-│   └── release.yml              # 打 v* 标签 / 手动触发：构建并发布 Release
+│   ├── release.yml              # 打 v* 标签 / 手动触发：构建并发布 Release
+│   └── plugin-release.yml       # main 推送 / plugin-v* 标签：自动发布插件并回写清单
 ├── docs/
 │   ├── SECURITY.md
 │   ├── ARCHITECTURE.md
@@ -220,7 +221,7 @@ GUI 的入口在「游戏位置」弹层底部（清理残留 / 功能模块 / �
 - `PluginUpdater.DownloadAsync` 下载到 `%LOCALAPPDATA%\BD2ModManager\plugin-update\pending-<version>\`，先写 `.download`，校验 SHA256 与大小后原子改名；最大 32 MB。
 - `PluginUpdater.Apply` 在游戏运行时只保留 pending，提示退出后再装；游戏未运行时调用 `ComponentManager.ReplaceFile`，只替换安装记录里哈希仍匹配的 `BD2SkinUnlock.dll`，先备份到 `plugin-update/backup/`，失败尝试还原。
 - GUI 在更新卡里显示「插件更新」行；启动时自动检查（受 `AutoUpdate` 总开关约束），也可手动检查/安装。程序重启后 `TryGetPending` 会恢复已下载状态。
-- 清单与构建：`plugin/plugin.json` 是当前基线；`.github/workflows/plugin-release.yml` 在 `plugin-v*` tag 构建 Release DLL、生成清单和 `SHA256SUMS.txt` 并上传 Release。主程序发布不包含插件清单。
+- 清单与构建：`plugin/plugin.json` 是当前基线；`.github/workflows/plugin-release.yml` 在 main 推送时读取 `SkinUnlock.csproj` 的 `<Version>`，标签不存在就自动构建并发布 `plugin-v<版本>`；也支持手动 `plugin-v*` tag。发布后生成清单和 `SHA256SUMS.txt`，并把 `plugin.json` 回写 main。主程序发布不包含插件清单。
 
 ### CLI 命令
 

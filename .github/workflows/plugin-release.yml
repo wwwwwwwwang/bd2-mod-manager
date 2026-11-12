@@ -2,11 +2,12 @@ name: Plugin Release
 
 on:
   push:
+    branches: [main]
     tags: ["plugin-v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "插件标签，例如 plugin-v1.2.1（留空使用当前 ref）"
+        description: "插件标签，例如 plugin-v1.3.0（留空按 csproj 版本自动生成）"
         required: false
         type: string
       min_app:
@@ -14,12 +15,17 @@ on:
         required: false
         default: "0.8.12"
         type: string
+      force:
+        description: "标签已存在时仍重新发布"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 concurrency:
-  group: plugin-release-${{ github.ref }}
+  group: plugin-release
   cancel-in-progress: false
 
 jobs:
@@ -28,36 +34,67 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "8.0.x"
+          fetch-depth: 0
 
       - name: 解析标签
         id: meta
         run: |
-          TAG="${{ github.event.inputs.tag }}"
-          if [ -z "$TAG" ]; then TAG="${{ github.ref_name }}"; fi
+          set -euo pipefail
+          EVENT="${{ github.event_name }}"
+          REF_TYPE="${{ github.ref_type }}"
+          INPUT_TAG="${{ github.event.inputs.tag }}"
+          FORCE="${{ github.event.inputs.force }}"
+          if [ "$EVENT" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            VER=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' src/BD2ModManager.SkinUnlock/BD2ModManager.SkinUnlock.csproj | head -1)
+            if [ -z "$VER" ]; then
+              echo "::error::SkinUnlock.csproj 中未找到 <Version>"
+              exit 1
+            fi
+            TAG="plugin-v$VER"
+          fi
           if [[ "$TAG" != plugin-v* ]]; then
             echo "::error::插件标签必须以 plugin-v 开头（当前：$TAG）"
             exit 1
           fi
           VER="${TAG#plugin-v}"
+          SKIP=false
+          if [ "$EVENT" = "push" ] && [ "$REF_TYPE" = "branch" ] && [ "$FORCE" != "true" ]; then
+            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "标签 $TAG 已存在，跳过插件发布"
+              SKIP=true
+            fi
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+          echo "插件版本：$VER，标签：$TAG，跳过：$SKIP"
+
+      - uses: actions/setup-dotnet@v6
+        if: steps.meta.outputs.skip != 'true'
+        with:
+          dotnet-version: "8.0.x"
 
       - name: 准备编译引用
+        if: steps.meta.outputs.skip != 'true'
         run: |
           python3 scripts/package_loader.py --cache-dir .cache/loader --out dist/bd2-loader.zip
           python3 scripts/prepare_refs.py --zip dist/bd2-loader.zip
 
       - name: 编译插件（Release）
+        if: steps.meta.outputs.skip != 'true'
         run: dotnet build src/BD2ModManager.SkinUnlock/BD2ModManager.SkinUnlock.csproj -c Release
 
       - name: 离线验证插件
+        if: steps.meta.outputs.skip != 'true'
         run: dotnet run --project tests/BD2ModManager.SkinUnlock.Tests -c Release
 
       - name: 生成发布资产与清单
+        if: steps.meta.outputs.skip != 'true'
         env:
           TAG: ${{ steps.meta.outputs.tag }}
           VER: ${{ steps.meta.outputs.version }}
@@ -90,18 +127,24 @@ jobs:
           sha256sum * > SHA256SUMS.txt
 
       - name: 发布到 GitHub Release
+        if: steps.meta.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          TAG="${{ steps.meta.outputs.tag }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/plugin/* --clobber
           else
+            TARGET_ARGS=()
+            if [ "${{ github.ref_type }}" = "branch" ]; then
+              TARGET_ARGS=(--target "$GITHUB_SHA")
+            fi
             gh release create "$TAG" dist/plugin/* \
-              --title "BD2SkinUnlock $TAG" --generate-notes
+              --title "BD2SkinUnlock $TAG" --generate-notes "${TARGET_ARGS[@]}"
           fi
 
       - name: 同步插件清单到 main
+        if: steps.meta.outputs.skip != 'true'
         env:
           VER: ${{ steps.meta.outputs.version }}
         run: |
