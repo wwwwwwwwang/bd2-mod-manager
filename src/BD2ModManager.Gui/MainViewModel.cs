@@ -13,6 +13,8 @@ using BD2ModManager.Core;
 
 namespace BD2ModManager.Gui;
 
+public sealed record ModuleStatusRow(string Name, string State, IBrush Brush);
+
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly Window _window;
@@ -70,6 +72,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         _window = window;
         _modules = ModuleSettings.Load(_store);
+        RefreshModuleStatuses();
         _installer = new LoaderInstaller(_store);
         _components = new ComponentManager(_store);
         var savedUpdateDir = UpdatePreferences.LoadDownloadDirectory();
@@ -110,14 +113,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private void RefreshModuleStatuses()
+    {
+        static IBrush OnOff(bool value) => new SolidColorBrush(Color.Parse(value ? "#107C10" : "#8A8A8A"));
+        ModuleStatuses = new[]
+        {
+            new ModuleStatusRow("皮肤本地显示", _modules.SkinUnlock ? "已开启" : "已关闭", OnOff(_modules.SkinUnlock)),
+            new ModuleStatusRow("大厅互动扩展", _modules.Interactions ? "已开启" : "已关闭", OnOff(_modules.Interactions)),
+            new ModuleStatusRow("内容审查关闭", _modules.DisableCensorship ? "已开启" : "已关闭", OnOff(_modules.DisableCensorship)),
+            new ModuleStatusRow("全服装镜像", _modules.AllCostumes ? "已开启" : "默认关闭", OnOff(_modules.AllCostumes)),
+            new ModuleStatusRow("心契之约实验", _modules.CovenantExperimental ? "已开启" : "默认关闭", OnOff(_modules.CovenantExperimental)),
+        };
+        OnPropertyChanged(nameof(ModuleStatuses));
+    }
+
     // ------------------------------------------------------------ 绑定属性
 
     public string Version { get; }
+    public string PluginVersionText => $"插件 {PluginUpdater.CurrentPluginVersion} · 本地显示";
     public string Title => "BD2ModManager";
     public string Subtitle => "Brown Dust 2 · 一键皮肤解锁";
 
     public ObservableCollection<PluginItem> Plugins { get; } = new();
     public ObservableCollection<ComponentItem> Components { get; } = new();
+
+    public IReadOnlyList<ModuleStatusRow> ModuleStatuses { get; private set; } = Array.Empty<ModuleStatusRow>();
 
     public ICommand RescanCommand { get; }
     public ICommand BrowseCommand { get; }
@@ -354,16 +374,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string PowerLabel => IsBusy ? "处理中" : ToggleOn ? "已启用" : "启用";
 
     public IBrush PowerBackground => IsBusy
-        ? Brush.Parse("#60A5FA")
-        : ToggleOn ? Brush.Parse("#2563EB") : Brush.Parse("#E2E8F0");
+        ? Brush.Parse("#5AA6E0")
+        : ToggleOn ? Brush.Parse("#0F6CBD") : Brush.Parse("#E5E5E5");
 
     public IBrush PowerTextBrush => IsBusy || ToggleOn
         ? Brushes.White
         : Brush.Parse("#94A3B8");
 
     public IBrush HeroDotBrush => ToggleOn
-        ? Brush.Parse("#2563EB")
-        : Brush.Parse("#CBD5E1");
+        ? Brush.Parse("#0F6CBD")
+        : Brush.Parse("#C7C7C7");
 
     /// <summary>日志按行存，交给 ListBox 显示——它的滚动最靠谱。</summary>
     public ObservableCollection<string> LogLines { get; } = new();
@@ -1232,6 +1252,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (await window.ShowDialog<bool>(_window))
         {
             _modules = ModuleSettings.Load(_store);
+            RefreshModuleStatuses();
             OnPropertyChanged(nameof(CanExportDiagnostics));
             Log("功能模块设置已保存；插件会在下一轮巡检时生效。");
         }

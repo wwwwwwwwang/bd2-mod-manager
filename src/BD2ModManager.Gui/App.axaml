@@ -4,22 +4,26 @@
              RequestedThemeVariant="Light">
 
   <Application.Resources>
-    <Color x:Key="SystemAccentColor">#2563EB</Color>
+    <Color x:Key="SystemAccentColor">#0F6CBD</Color>
 
-    <SolidColorBrush x:Key="AccentBrush" Color="#2563EB" />
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#1D4ED8" />
-    <SolidColorBrush x:Key="AccentSoftBrush" Color="#EFF6FF" />
-    <SolidColorBrush x:Key="WindowBg" Color="#F4F8FF" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#0F6CBD" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#0B5A9E" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#E8F1FB" />
+    <SolidColorBrush x:Key="WindowBg" Color="#F3F3F3" />
     <SolidColorBrush x:Key="CardBg" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="CardBorder" Color="#E2E8F0" />
-    <SolidColorBrush x:Key="BlueBorder" Color="#DBEAFE" />
-    <SolidColorBrush x:Key="TextPrimary" Color="#1E293B" />
-    <SolidColorBrush x:Key="TextSecondary" Color="#64748B" />
-    <SolidColorBrush x:Key="TextMuted" Color="#94A3B8" />
-    <SolidColorBrush x:Key="TrackOff" Color="#CBD5E1" />
-    <SolidColorBrush x:Key="PillBg" Color="#F7FAFF" />
-    <SolidColorBrush x:Key="PillBorder" Color="#DBEAFE" />
-    <SolidColorBrush x:Key="SuccessBrush" Color="#10B981" />
+    <SolidColorBrush x:Key="CardBorder" Color="#E5E7EB" />
+    <SolidColorBrush x:Key="BlueBorder" Color="#D6E7F7" />
+    <SolidColorBrush x:Key="TextPrimary" Color="#1B1B1B" />
+    <SolidColorBrush x:Key="TextSecondary" Color="#5F6368" />
+    <SolidColorBrush x:Key="TextMuted" Color="#8A8A8A" />
+    <SolidColorBrush x:Key="TrackOff" Color="#C7C7C7" />
+    <SolidColorBrush x:Key="PillBg" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="PillBorder" Color="#E5E7EB" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#107C10" />
+    <SolidColorBrush x:Key="SuccessSoftBrush" Color="#E6F4EA" />
+    <SolidColorBrush x:Key="SidebarBrush" Color="#FAFAFA" />
+    <SolidColorBrush x:Key="LineBrush" Color="#E5E7EB" />
+    <SolidColorBrush x:Key="NavActiveBrush" Color="#E8F1FB" />
 
     <LinearGradientBrush x:Key="ShellGradient" StartPoint="0%,0%" EndPoint="0%,100%">
       <GradientStop Color="#F7FBFF" Offset="0" />
@@ -44,8 +48,55 @@
       <Setter Property="Background" Value="{StaticResource CardBg}" />
       <Setter Property="BorderBrush" Value="{StaticResource CardBorder}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="16" />
-      <Setter Property="Padding" Value="16" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="22" />
+    </Style>
+
+    <Style Selector="TextBlock.page-title">
+      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    </Style>
+
+    <Style Selector="TextBlock.page-subtitle">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+    </Style>
+
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    </Style>
+
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="12,5" />
+    </Style>
+
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10,9" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Foreground" Value="#3B3B3B" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#F0F0F0" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    </Style>
+    <Style Selector="Button.nav.active">
+      <Setter Property="Background" Value="{StaticResource NavActiveBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.nav.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource NavActiveBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
     </Style>
 
     <Style Selector="TextBlock.label">

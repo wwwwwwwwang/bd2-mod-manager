@@ -25,6 +25,15 @@ public partial class MainWindow : Window
         _spinner.Start();
     }
 
+    private void ContentScroll_SizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        // ScrollViewer 在垂直滚动时会用无限宽度测量内容，
+        // 这里显式把内容宽度钉在视口内，避免卡片被右侧裁掉。
+        var width = Math.Max(320, e.NewSize.Width - 96);
+        if (double.IsNaN(ContentPanel.Width) || Math.Abs(ContentPanel.Width - width) > 0.5)
+            ContentPanel.Width = width;
+    }
+
     private void TickSpinner()
     {
         if (DataContext is not MainViewModel vm || !vm.IsBusy)
