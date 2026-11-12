@@ -100,3 +100,20 @@ jobs:
             gh release create "$TAG" dist/plugin/* \
               --title "BD2SkinUnlock $TAG" --generate-notes
           fi
+
+      - name: 同步插件清单到 main
+        env:
+          VER: ${{ steps.meta.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          cp dist/plugin/plugin.json plugin/plugin.json
+          if git diff --quiet -- plugin/plugin.json; then
+            echo "plugin/plugin.json 无变化，跳过提交"
+            exit 0
+          fi
+          git add plugin/plugin.json
+          git commit -m "chore(plugin): 更新插件清单 ${VER}"
+          git push origin HEAD:main
