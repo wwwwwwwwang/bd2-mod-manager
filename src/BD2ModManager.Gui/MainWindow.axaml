@@ -120,10 +120,9 @@
       <ScrollViewer Grid.Column="1" x:Name="ContentScroll"
                     HorizontalScrollBarVisibility="Disabled"
                     HorizontalContentAlignment="Stretch"
-                    VerticalScrollBarVisibility="Auto"
-                    SizeChanged="ContentScroll_SizeChanged">
+                    VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="ContentPanel" Margin="32,26,32,28" Spacing="20"
-                    HorizontalAlignment="Left">
+                    HorizontalAlignment="Stretch">
 
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Spacing="3">
@@ -307,31 +306,43 @@
 
         <!-- 游戏位置与环境 -->
         <Border IsVisible="{Binding PathSheetOpen}"
-                Width="760" MaxHeight="700"
-                HorizontalAlignment="Center" VerticalAlignment="Center"
-                Background="White" BorderBrush="{StaticResource CardBorder}"
-                BorderThickness="1" CornerRadius="16" Padding="26">
+                Width="780" MaxHeight="470" Classes="dialog" Padding="26"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Spacing="15">
+            <StackPanel Spacing="16">
               <Grid ColumnDefinitions="Auto,*,Auto">
-                <Path Data="M3 6.5C3 5.7 3.7 5 4.5 5H9L11 7H19.5C20.3 7 21 7.7 21 8.5V18.5C21 19.3 20.3 20 19.5 20H4.5C3.7 20 3 19.3 3 18.5V6.5Z"
-                      Fill="Transparent" Stroke="{StaticResource AccentBrush}"
-                      StrokeThickness="1.5" StrokeJoin="Round"
-                      Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="游戏位置与环境" Margin="9,0,0,0"
-                           FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Button Grid.Column="2" Classes="link" Content="关闭"
-                        Command="{Binding CloseSheetCommand}" />
+                <Border Width="36" Height="36" CornerRadius="10"
+                        Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Center">
+                  <Path Data="M3 6.5C3 5.7 3.7 5 4.5 5H9L11 7H19.5C20.3 7 21 7.7 21 8.5V18.5C21 19.3 20.3 20 19.5 20H4.5C3.7 20 3 19.3 3 18.5V6.5Z"
+                        Fill="Transparent" Stroke="{StaticResource AccentBrush}"
+                        StrokeThickness="1.5" StrokeJoin="Round"
+                        Width="18" Height="18" Stretch="Uniform"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Classes="sheet-title" Text="游戏位置与环境" />
+                  <TextBlock Classes="page-subtitle" Text="管理游戏目录、Loader 与本地显示模块。" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="icon" Command="{Binding CloseSheetCommand}"
+                        ToolTip.Tip="关闭">
+                  <Path Data="M6 6L18 18 M18 6L6 18"
+                        Fill="Transparent" Stroke="{StaticResource TextMuted}"
+                        StrokeThickness="1.6" StrokeLineCap="Round"
+                        Width="14" Height="14" Stretch="Uniform"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Button>
               </Grid>
 
-              <Border Background="#F8F8F8" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                      CornerRadius="8" Padding="10,9">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                  <TextBlock Text="{Binding GamePath}" FontSize="11"
-                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                             ToolTip.Tip="{Binding GamePath}" />
-                  <Button Grid.Column="1" Classes="link" Content="复制" Click="CopyPath_Click" />
-                </Grid>
+              <Border Classes="section">
+                <StackPanel Spacing="8">
+                  <TextBlock Classes="section-heading" Text="当前游戏目录" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <TextBlock Text="{Binding GamePath}" Classes="mono"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                               ToolTip.Tip="{Binding GamePath}" />
+                    <Button Grid.Column="1" Classes="link" Content="复制" Click="CopyPath_Click" />
+                  </Grid>
+                </StackPanel>
               </Border>
 
               <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
@@ -344,30 +355,31 @@
                         IsEnabled="{Binding HasGame}" />
               </Grid>
 
-              <Border Background="#F8FBFF" BorderBrush="{StaticResource BlueBorder}" BorderThickness="1"
-                      CornerRadius="10" Padding="12,10">
-                <StackPanel Spacing="4">
-                  <StackPanel Orientation="Horizontal" Spacing="7">
+              <Border Classes="section">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="section-heading" Text="运行状态" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
                     <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding StatusText}" FontSize="12.5" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding StatusText}" FontSize="13" FontWeight="SemiBold" />
                   </StackPanel>
-                  <TextBlock Text="{Binding StatusHint}" FontSize="10.5"
+                  <TextBlock Text="{Binding StatusHint}" FontSize="11"
                              Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
-                  <TextBlock Text="{Binding GameMeta}" FontSize="10"
+                  <TextBlock Text="{Binding GameMeta}" FontSize="10.5"
                              Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
 
-              <Border Background="#F8FBFF" BorderBrush="{StaticResource BlueBorder}" BorderThickness="1"
-                      CornerRadius="10" Padding="12,10">
-                <StackPanel Spacing="9">
-                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <Border Classes="section">
+                <StackPanel Spacing="11">
+                  <TextBlock Classes="section-heading" Text="更新" />
+
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <StackPanel Spacing="2" VerticalAlignment="Center">
-                      <TextBlock Text="主程序更新" FontSize="11.5" FontWeight="SemiBold" />
-                      <TextBlock Text="{Binding UpdateStatus}" FontSize="10"
+                      <TextBlock Text="主程序更新" FontSize="12" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding UpdateStatus}" FontSize="10.5"
                                  Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7"
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                                 VerticalAlignment="Center">
                       <Button Classes="link" Content="检查" Command="{Binding CheckUpdateCommand}"
                               IsEnabled="{Binding !IsCheckingUpdate}" />
@@ -378,13 +390,16 @@
                               IsEnabled="{Binding !IsInstallingUpdate}" />
                     </StackPanel>
                   </Grid>
-                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+
+                  <Border Height="1" Background="{StaticResource CardBorder}" />
+
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <StackPanel Spacing="2" VerticalAlignment="Center">
-                      <TextBlock Text="插件更新" FontSize="11" FontWeight="SemiBold" />
-                      <TextBlock Text="{Binding PluginUpdateStatus}" FontSize="10"
+                      <TextBlock Text="插件更新" FontSize="12" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding PluginUpdateStatus}" FontSize="10.5"
                                  Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7"
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                                 VerticalAlignment="Center">
                       <Button Classes="link" Content="检查" Command="{Binding CheckPluginUpdateCommand}"
                               IsEnabled="{Binding !IsInstallingPluginUpdate}" />
@@ -393,6 +408,7 @@
                               IsVisible="{Binding CanInstallPluginUpdate}" />
                     </StackPanel>
                   </Grid>
+
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBlock Text="{Binding UpdateDownloadDirText}" FontSize="9.5"
                                Foreground="{StaticResource TextMuted}"
@@ -421,10 +437,10 @@
 
               <Border IsVisible="{Binding ShowPickPackage}"
                       Background="#FFF8F1" BorderBrush="#F3D6BC" BorderThickness="1"
-                      CornerRadius="10" Padding="12,10">
-                <StackPanel Spacing="5">
-                  <TextBlock Text="缺少加载器包" FontSize="12" FontWeight="SemiBold" />
-                  <TextBlock Text="当前构建没有内嵌 bd2-loader.zip。" FontSize="10.5"
+                      CornerRadius="10" Padding="14,12">
+                <StackPanel Spacing="6">
+                  <TextBlock Text="缺少加载器包" FontSize="12.5" FontWeight="SemiBold" />
+                  <TextBlock Text="当前构建没有内嵌 bd2-loader.zip。" FontSize="11"
                              Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
                   <Button Classes="ghost" Content="选择加载器包" HorizontalAlignment="Left"
                           Command="{Binding PickPackageCommand}" />
@@ -436,27 +452,36 @@
 
         <!-- 日志 -->
         <Border IsVisible="{Binding LogsSheetOpen}"
-                Width="820" Height="600"
-                HorizontalAlignment="Center" VerticalAlignment="Center"
-                Background="White" BorderBrush="{StaticResource CardBorder}"
-                BorderThickness="1" CornerRadius="16" Padding="24">
-          <StackPanel Spacing="12">
+                Width="780" Height="470" Classes="dialog" Padding="26"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Grid RowDefinitions="Auto,*">
             <Grid ColumnDefinitions="Auto,*,Auto">
-              <Path Data="M4 5H20V19H4V5Z M7 9L10 12L7 15 M12 15H17"
-                    Fill="Transparent" Stroke="{StaticResource AccentBrush}"
-                    StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round"
-                    Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="1" Text="运行日志" Margin="9,0,0,0"
-                         FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
-              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                <Button Classes="link" Content="清空" Command="{Binding ClearLogCommand}" />
-                <Button Classes="link" Content="关闭" Command="{Binding CloseSheetCommand}" />
+              <Border Width="36" Height="36" CornerRadius="10"
+                      Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Center">
+                <Path Data="M4 5H20V19H4V5Z M7 9L10 12L7 15 M12 15H17"
+                      Fill="Transparent" Stroke="{StaticResource AccentBrush}"
+                      StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round"
+                      Width="18" Height="18" Stretch="Uniform"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="2" VerticalAlignment="Center">
+                <TextBlock Classes="sheet-title" Text="运行日志" />
+                <TextBlock Classes="page-subtitle" Text="记录安装、模块与更新操作；仅保留本次会话。" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Button Classes="ghost" Content="清空" Command="{Binding ClearLogCommand}" />
+                <Button Classes="icon" Command="{Binding CloseSheetCommand}" ToolTip.Tip="关闭">
+                  <Path Data="M6 6L18 18 M18 6L6 18"
+                        Fill="Transparent" Stroke="{StaticResource TextMuted}"
+                        StrokeThickness="1.6" StrokeLineCap="Round"
+                        Width="14" Height="14" Stretch="Uniform"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Button>
               </StackPanel>
             </Grid>
 
-            <Border Background="#F8FAFC" BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
-                    CornerRadius="10" Padding="10,8">
-              <ListBox x:Name="LogList" Classes="log-list" Height="430"
+            <Border Grid.Row="1" Classes="section" Margin="0,16,0,0" Padding="10">
+              <ListBox x:Name="LogList" Classes="log-list" Height="320"
                        ItemsSource="{Binding LogLines}">
                 <ListBox.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -470,7 +495,7 @@
                 </ListBox.ItemTemplate>
               </ListBox>
             </Border>
-          </StackPanel>
+          </Grid>
         </Border>
       </Grid>
     </Border>
@@ -478,14 +503,24 @@
     <!-- 确认浮层 -->
     <Border Grid.RowSpan="2" ZIndex="100"
             IsVisible="{Binding ConfirmVisible}" Background="#660F172A">
-      <Border Background="White" CornerRadius="14" Padding="22" Width="380"
+      <Border Classes="dialog" Width="420" Padding="24"
               HorizontalAlignment="Center" VerticalAlignment="Center">
-        <StackPanel Spacing="10">
-          <TextBlock Text="{Binding ConfirmTitle}" FontSize="15" FontWeight="SemiBold"
-                     TextWrapping="Wrap" />
-          <TextBlock Text="{Binding ConfirmMessage}" FontSize="11.5"
-                     Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,4,0,0">
+        <StackPanel Spacing="16">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Border Width="40" Height="40" CornerRadius="20" Background="#FFF4E5"
+                    VerticalAlignment="Top">
+              <TextBlock Text="!" FontSize="20" FontWeight="Bold" Foreground="#B45309"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Spacing="5">
+              <TextBlock Text="{Binding ConfirmTitle}" FontSize="16" FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="{Binding ConfirmMessage}" FontSize="12"
+                         Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
+                         LineHeight="19" />
+            </StackPanel>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Classes="ghost" Content="取消" Command="{Binding ConfirmCancelCommand}" />
             <Button Classes="primary" Content="确认" Command="{Binding ConfirmYesCommand}" />
           </StackPanel>

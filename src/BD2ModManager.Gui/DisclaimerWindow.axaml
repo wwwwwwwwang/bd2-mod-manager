@@ -2,22 +2,37 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="BD2ModManager.Gui.DisclaimerWindow"
         Title="BD2 Mod Manager · 使用前须知"
-        Width="860" Height="720"
+        Width="820" Height="520"
         CanResize="False"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource WindowBg}">
-  <Grid Margin="24" RowDefinitions="Auto,*,Auto">
-    <StackPanel Spacing="4">
-      <TextBlock Text="使用前须知" FontSize="26" FontWeight="Bold" />
-      <TextBlock Text="请先阅读下面的说明，并选择要启用的功能模块。不同意请直接退出。"
-                 Classes="muted" />
-    </StackPanel>
+  <Grid Margin="26" RowDefinitions="Auto,*,Auto">
+    <Grid ColumnDefinitions="Auto,*">
+      <Border Width="40" Height="40" CornerRadius="11"
+              Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Top">
+        <Path Data="M12 3L21 7V12C21 17 17.2 20.4 12 22C6.8 20.4 3 17 3 12V7L12 3Z M12 8V13 M12 17H12.01"
+              Fill="Transparent" Stroke="{StaticResource AccentBrush}"
+              StrokeThickness="1.6" StrokeLineCap="Round" StrokeJoin="Round"
+              Width="20" Height="20" Stretch="Uniform"
+              HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <StackPanel Grid.Column="1" Margin="13,0,0,0" Spacing="3">
+        <TextBlock Classes="page-title" Text="使用前须知" />
+        <TextBlock Classes="page-subtitle"
+                   Text="请先阅读下面的说明，并选择要启用的功能模块。不同意请直接退出。" />
+      </StackPanel>
+    </Grid>
 
-    <ScrollViewer Grid.Row="1" Margin="0,16" VerticalScrollBarVisibility="Auto">
+    <ScrollViewer Grid.Row="1" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="12">
         <Border Classes="card">
           <StackPanel Spacing="8">
-            <TextBlock Text="免责声明" FontSize="15" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="section-title" Text="免责声明" />
+              <Border Classes="badge" Padding="8,3" VerticalAlignment="Center">
+                <TextBlock Text="必读" FontSize="10" Foreground="{StaticResource AccentBrush}" />
+              </Border>
+            </StackPanel>
             <TextBlock TextWrapping="Wrap" LineHeight="20"
                        Text="本工具是《棕色尘埃2》的本地显示增强工具，只修改客户端本地的显示与界面数据，不修改游戏服务器数据、账号存档或付费状态。所有解锁效果仅在本机可见，其他玩家和服务器不会看到，也不会因此获得服务器认可的内容。&#10;&#10;本工具与游戏开发商、发行商无关，属于非官方第三方工具。使用第三方工具可能违反游戏服务条款，存在账号被限制、封禁或数据异常的风险；风险由使用者自行承担。请勿将本工具用于商业用途、传播修改后的客户端或规避游戏运营规则。&#10;&#10;本工具不使用、不复刻任何收费授权系统，不包含对方的授权 DLL、卡密或反调试代码。若你不同意上述内容，请点击“退出”。" />
           </StackPanel>
@@ -25,7 +40,7 @@
 
         <Border Classes="card">
           <StackPanel Spacing="10">
-            <TextBlock Text="功能模块" FontSize="15" FontWeight="SemiBold" />
+            <TextBlock Classes="section-title" Text="功能模块" />
             <TextBlock Text="低风险模块默认开启；带“高风险”标记的模块默认关闭，勾选后需要二次确认。"
                        Classes="muted" TextWrapping="Wrap" />
 
@@ -37,6 +52,14 @@
 
             <Border Height="1" Background="{StaticResource CardBorder}" Margin="0,4" />
 
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
+              <TextBlock Text="高风险功能" FontSize="12" FontWeight="SemiBold"
+                         Foreground="#3B3B3B" VerticalAlignment="Center" />
+              <Border Classes="badge-risk" VerticalAlignment="Center">
+                <TextBlock Text="默认关闭 · 需二次确认" />
+              </Border>
+            </StackPanel>
+
             <CheckBox x:Name="CovenantCheck" Content="心契之约实验扩展（高风险：约会列表/互动按钮放行，可能界面异常）" />
             <CheckBox x:Name="AllCostumesCheck" Content="全服装本地镜像（高风险：本地注入皮肤表内服装，服务器不认可）" />
             <CheckBox x:Name="AllCharactersCheck" Content="全角色本地镜像（尚未实现）" IsEnabled="False" />
@@ -46,7 +69,7 @@
 
         <Border Classes="card">
           <StackPanel Spacing="6">
-            <TextBlock Text="风险提示" FontSize="15" FontWeight="SemiBold" />
+            <TextBlock Classes="section-title" Text="风险提示" />
             <TextBlock TextWrapping="Wrap" LineHeight="20"
                        Text="全服装、全角色、全情缘服装属于客户端本地镜像：它们不会让服务器认为你拥有这些内容，进入战斗、结算、存档同步或活动校验时可能出现不一致。心契之约实验扩展可能因游戏版本变化导致界面异常。建议只在离线/单人场景使用，出现异常时关闭对应模块并重启游戏。" />
           </StackPanel>
@@ -54,13 +77,15 @@
       </StackPanel>
     </ScrollViewer>
 
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
-      <CheckBox x:Name="AgreeCheck" Content="我已阅读并同意上述免责声明与风险提示" VerticalAlignment="Center" />
-      <Button Grid.Column="1" Classes="ghost" Content="退出" Click="OnExit" Margin="12,0,8,0" />
-      <Button Grid.Column="2" Classes="primary" Content="同意并进入" Click="OnAgree" />
+    <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,14,0,0">
+      <CheckBox x:Name="AgreeCheck" Content="我已阅读并同意上述免责声明与风险提示"
+                VerticalAlignment="Center" />
+      <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+        <TextBlock x:Name="StatusText" Foreground="#DC2626" FontSize="11.5"
+                   VerticalAlignment="Center" TextWrapping="Wrap" />
+        <Button Grid.Column="1" Classes="ghost" Content="退出" Click="OnExit" Margin="12,0,8,0" />
+        <Button Grid.Column="2" Classes="primary" Content="同意并进入" Click="OnAgree" />
+      </Grid>
     </Grid>
-
-    <TextBlock x:Name="StatusText" Grid.Row="2" Foreground="#DC2626" FontSize="12"
-               VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="0,42,0,0" />
   </Grid>
 </Window>

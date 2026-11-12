@@ -2,22 +2,37 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="BD2ModManager.Gui.ModulesWindow"
         Title="功能模块"
-        Width="720" Height="620"
+        Width="720" Height="520"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource WindowBg}">
-  <Grid Margin="24" RowDefinitions="Auto,*,Auto">
-    <StackPanel Spacing="4">
-      <TextBlock Text="功能模块" FontSize="24" FontWeight="Bold" />
-      <TextBlock Text="开关会写入状态目录的 modules.ini，插件下一轮巡检生效。高风险功能需要二次确认。"
-                 Classes="muted" TextWrapping="Wrap" />
-    </StackPanel>
+  <Grid Margin="26" RowDefinitions="Auto,*,Auto">
+    <Grid ColumnDefinitions="Auto,*">
+      <Border Width="40" Height="40" CornerRadius="11"
+              Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Top">
+        <Path Data="M4 4H10V10H4V4Z M14 4H20V10H14V4Z M4 14H10V20H4V14Z M14 14H20V20H14V14Z"
+              Fill="Transparent" Stroke="{StaticResource AccentBrush}"
+              StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform"
+              HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <StackPanel Grid.Column="1" Margin="13,0,0,0" Spacing="3">
+        <TextBlock Classes="page-title" Text="功能模块" />
+        <TextBlock Classes="page-subtitle"
+                   Text="开关会写入状态目录的 modules.ini，插件下一轮巡检生效。高风险功能需要二次确认。" />
+      </StackPanel>
+    </Grid>
 
-    <ScrollViewer Grid.Row="1" Margin="0,16" VerticalScrollBarVisibility="Auto">
-      <StackPanel Spacing="10">
-        <Border Classes="card">
-          <StackPanel Spacing="8">
-            <TextBlock Text="基础功能" FontSize="15" FontWeight="SemiBold" />
+    <ScrollViewer Grid.Row="1" Margin="0,20,0,0" VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="12">
+        <Border Classes="card" Padding="20">
+          <StackPanel Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="section-title" Text="基础功能" />
+              <Border Classes="badge" Padding="8,3" VerticalAlignment="Center">
+                <TextBlock Text="默认开启" FontSize="10" Foreground="{StaticResource AccentBrush}" />
+              </Border>
+            </StackPanel>
             <CheckBox x:Name="SkinUnlockCheck" Content="皮肤本地显示（只改本地显示）" />
             <CheckBox x:Name="InteractionsCheck" Content="大厅互动扩展（补全互动入口、放行互动判定）" />
             <CheckBox x:Name="CensorshipCheck" Content="关闭内容审查" />
@@ -26,10 +41,17 @@
           </StackPanel>
         </Border>
 
-        <Border Classes="card">
-          <StackPanel Spacing="8">
-            <TextBlock Text="高风险功能（默认关闭）" FontSize="15" FontWeight="SemiBold" />
-            <CheckBox x:Name="CovenantCheck" Content="心契之约实验扩展（约会列表/互动按钮放行）" />
+        <Border Classes="card" Padding="20">
+          <StackPanel Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="section-title" Text="高风险功能" />
+              <Border Classes="badge-risk" VerticalAlignment="Center">
+                <TextBlock Text="默认关闭 · 需二次确认" />
+              </Border>
+            </StackPanel>
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="以下功能只修改本机内存中的显示数据，服务器不会认可；进入战斗、结算或活动校验时可能出现异常。" />
+            <CheckBox x:Name="CovenantCheck" Content="心契之约实验扩展（约会列表 / 互动按钮放行）" />
             <CheckBox x:Name="AllCostumesCheck" Content="全服装本地镜像（服务器不认可）" />
             <CheckBox x:Name="AllCharactersCheck" Content="全角色本地镜像（尚未实现）" IsEnabled="False" />
             <CheckBox x:Name="AllDatingCheck" Content="全情缘服装本地镜像（尚未实现）" IsEnabled="False" />
@@ -38,10 +60,11 @@
       </StackPanel>
     </ScrollViewer>
 
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
-      <TextBlock x:Name="StatusText" Foreground="#DC2626" FontSize="12" VerticalAlignment="Center" />
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,16,0,0">
+      <TextBlock x:Name="StatusText" Foreground="#DC2626" FontSize="11.5"
+                 VerticalAlignment="Center" TextWrapping="Wrap" />
       <Button Grid.Column="1" Classes="ghost" Content="取消" Click="OnCancel" Margin="12,0,8,0" />
-      <Button Grid.Column="2" Classes="primary" Content="保存" Click="OnSave" />
+      <Button Grid.Column="2" Classes="primary" Content="保存设置" Click="OnSave" />
     </Grid>
   </Grid>
 </Window>
