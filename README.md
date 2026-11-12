@@ -36,19 +36,28 @@
 
 ## 📦 发布产物
 
-Release 只需要下载一个文件：
+主程序 Release 只需要下载一个文件：
 
 | 文件 | 说明 |
 |---|---|
-| `BD2ModManager-<版本>-win-x64.exe` | 唯一需要下载的文件；loader 与解锁插件都已内嵌，双击即用 |
+| `BD2ModManager-<版本>-win-x64.exe` | 主程序；loader 与解锁插件都已内嵌，双击即用 |
+| `SHA256SUMS.txt` | 主程序校验和，不需要下载 |
 
 ```text
 BD2ModManager-<版本>-win-x64.exe
 ├─ bd2-loader（内嵌）
-└─ BD2SkinUnlock.dll（内嵌）
+└─ BD2SkinUnlock.dll（内嵌基线）
 ```
 
-> `SHA256SUMS.txt` 仅用于校验，不需要下载。
+插件另有独立 Release（`plugin-v<版本>`），管理器会自动检查并下载；只替换 DLL，不必重下主程序：
+
+| 文件 | 说明 |
+|---|---|
+| `BD2SkinUnlock.dll` | 独立插件更新包 |
+| `plugin.json` | 版本、下载地址、SHA256、最低主程序版本清单 |
+| `SHA256SUMS.txt` | 插件包校验和 |
+
+> 主程序内嵌的插件是首次安装基线；之后有独立插件 Release 时，启动检查会提示更新。
 
 ## ❓ 常见问题
 

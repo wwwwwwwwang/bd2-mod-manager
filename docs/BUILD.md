@@ -64,10 +64,12 @@ dotnet run --project tests/BD2ModManager.Core.Tests -c Release
 
 | 产物 | 内容 | 说明 |
 |---|---|---|
-| `out/gui/BD2ModManager.exe` | 图形界面，自包含单文件 | loader 包与 `BD2SkinUnlock.dll` 已内嵌；约 45 MB，唯一发布物 |
+| `out/gui/BD2ModManager.exe` | 图形界面，自包含单文件 | loader 包与 `BD2SkinUnlock.dll` 已内嵌；约 45 MB，主程序发布物 |
 | `out/cli/bd2mm.exe` | 命令行版 | 开发调试用，CI 会构建，不进入 Release |
 | `dist/bd2-loader.zip` | loader 分发包 | 构建中间产物，不单独发布 |
-| `src/.../BD2SkinUnlock.dll` | 自研解锁插件 | 构建中间产物，不单独发布 |
+| `dist/plugin/BD2SkinUnlock.dll` | 自研解锁插件 | 插件 Release 资产；同时内嵌 GUI 作为首次安装基线 |
+| `dist/plugin/plugin.json` | 插件更新清单 | 客户端据此检查版本、下载地址与 SHA256 |
+| `dist/plugin/SHA256SUMS.txt` | 插件校验和 | 插件 Release 资产 |
 
 `dist/`、`refs/`、`src/BD2ModManager.Gui/Assets/bd2-loader.zip`、`BD2SkinUnlock.dll` 都被 `.gitignore` 排除。自包含 exe 体积大且无法增量 diff，二进制只走 GitHub Release。
 
@@ -161,10 +163,20 @@ git push origin v0.5.0
 
 ### 发布资产
 
+主程序 Release：
+
 | 资产 | 内容 |
 |---|---|
-| `BD2ModManager-<版本>-win-x64.exe` | 唯一发布物；图形界面，自包含单文件，loader 包与解锁插件都已内嵌 |
+| `BD2ModManager-<版本>-win-x64.exe` | 图形界面，自包含单文件，loader 包与解锁插件都已内嵌 |
 | `SHA256SUMS.txt` | 上述 exe 的校验和 |
+
+插件 Release（`plugin-v<版本>`）：
+
+| 资产 | 内容 |
+|---|---|
+| `BD2SkinUnlock.dll` | 独立插件更新包，只替换 DLL |
+| `plugin.json` | 版本、下载地址、SHA256、最低主程序版本 |
+| `SHA256SUMS.txt` | 插件包校验和 |
 
 ### `.github/workflows/plugin-release.yml`
 
