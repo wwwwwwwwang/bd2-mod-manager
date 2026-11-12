@@ -497,9 +497,9 @@ internal static class Program
         // 10b 已把 5101/5102 收集到 AllInteractionIds。
         var spinePrefix = typeof(ExtraUnlocks).GetMethod(
             "SpineSetUI_Prefix", BindingFlags.Static | BindingFlags.NonPublic);
-        var uiArgs = new object[] { new List<int> { 999 } };
+        var uiArgs = new object[] { null, new List<int> { 999 } };
         spinePrefix.Invoke(null, uiArgs);
-        var replacedIds = (List<int>)uiArgs[0];
+        var replacedIds = (List<int>)uiArgs[1];
         Check(replacedIds.Contains(5101) && !replacedIds.Contains(999),
             "心契之约列表被替换成全部互动");
 
@@ -509,19 +509,35 @@ internal static class Program
         Console.WriteLine("10e. 全服装本地镜像");
 
         Database.AddSkinRow(2005, 1003); // 1003 没有进 CostumeDict，模拟未拥有服装
+        Database.CostumeTableRows.Add(new Proto.Design.common.CostumeTable
+        {
+            Id = 1003,
+            DefaultCostumeDesignId = 2005,
+            UseUniqueCharId = 3001,
+        });
+        // 1004 没有任何 PrestigeSkin 行，只存在于 CostumeTable：只有走完整表才会被补进来。
+        Database.CostumeTableRows.Add(new Proto.Design.common.CostumeTable
+        {
+            Id = 1004,
+            DefaultCostumeDesignId = 2006,
+            UseUniqueCharId = 3002,
+        });
         var allCatalog = new SkinCatalog();
         Check(allCatalog.TryBuild(refs, _ => { }, _ => { }), "全服装目录可构建");
 
         var mirrored = AllCostumes.Apply(refs, allCatalog, true);
-        Eq(mirrored, 1, "补入 1 件未拥有服装");
+        Eq(mirrored, 2, "补入 2 件未拥有服装（含无皮肤行的服装）");
         Check(Database.CostumeDict.ContainsKey(1003), "未拥有服装进入本地字典");
         Eq(Database.CostumeDict[1003].DesignId, 2005, "镜像服装套用第一套皮肤设计");
         Check(Database.CostumeDict[1003].InvenIndex == 800000000L + 1003,
             "镜像服装 InvenIndex 使用虚拟区间");
+        Check(Database.CostumeDict.ContainsKey(1004) && Database.CostumeDict[1004].DesignId == 2006,
+            "无皮肤的 CostumeTable 行也被本地镜像");
 
         AllCostumes.Apply(refs, allCatalog, false);
         Check(!Database.CostumeDict.ContainsKey(1003), "关闭开关后镜像服装被移除");
         Database.DesignIds.Remove(2005);
+        Database.CostumeTableRows.Clear();
 
         // ------------------------------------------------------------ 11. 回滚
 

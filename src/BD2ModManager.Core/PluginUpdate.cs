@@ -39,7 +39,7 @@ public sealed record PluginApplyOutcome(bool Success, string Message, bool Pendi
 /// </summary>
 public static class PluginUpdater
 {
-    public const string CurrentPluginVersion = "1.2.1";
+    public const string CurrentPluginVersion = "1.3.0";
 
     public const string ManifestUrl =
         "https://raw.githubusercontent.com/wwwwwwwwang/bd2-mod-manager/main/plugin/plugin.json";

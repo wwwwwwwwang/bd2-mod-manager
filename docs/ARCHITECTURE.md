@@ -192,7 +192,7 @@ GUI 通过 `MainViewModel` 调用 Core，不直接做文件操作；所有耗时
 
 首次启动或免责声明版本变化时，`App` 先显示 `DisclaimerWindow`：用户必须勾选同意才能进入主窗口，否则进程退出。勾选结果与模块开关保存在 `%LOCALAPPDATA%\BD2ModManager\modules.ini`（`ModuleSettings`），不写游戏目录。
 
-主界面「功能模块」按钮打开 `ModulesWindow`；从关闭改为开启高风险模块（心契之约实验、全服装/全情缘/全角色本地镜像）时会再弹出 `RiskConfirmation` 二次确认。插件读取同一份 `modules.ini` 的 `[modules]` 段，每轮巡检重新加载，因此改开关不需要重启游戏；BepInEx 的 cfg 只保留低层参数。主程序也遵守 `Diagnostics`/`AutoUpdate`：关闭后诊断包按钮不可用、启动时不再自动检查更新，手动检查更新仍保留。
+主界面「功能模块」按钮打开 `ModulesWindow`；从关闭改为开启高风险模块（心契之约实验、全服装/全情缘/全角色本地镜像）时会再弹出 `RiskConfirmation` 二次确认。插件读取同一份 `modules.ini` 的 `[modules]` 段，每轮巡检重新加载，因此改开关不需要重启游戏；BepInEx 的 cfg 只保留低层参数。插件 1.3.0 的全服装镜像改为读取完整 `CostumeTable`（含无皮肤行/立绘/大厅动画），不再只依赖 `PrestigeSkinTable`。主程序也遵守 `Diagnostics`/`AutoUpdate`：关闭后诊断包按钮不可用、启动时不再自动检查更新，手动检查更新仍保留。
 
 ### 诊断包（Diagnostics）
 

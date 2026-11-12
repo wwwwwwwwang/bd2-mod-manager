@@ -114,6 +114,13 @@ namespace Proto.Design.common
     }
 
     /// <summary>大厅设定表：PrestigeSkinId != 0 的项就是「皮肤互动场景」。</summary>
+    public class CostumeTable
+    {
+        public int Id { get; set; }
+        public int DefaultCostumeDesignId { get; set; }
+        public int UseUniqueCharId { get; set; }
+    }
+
     public class LobbySettingItemTable
     {
         public int Id { get; set; }
@@ -153,10 +160,28 @@ namespace FakeGame
             if (!Database.IsLoaded)
                 throw new InvalidOperationException("Data not found exception. (common, id:0) - db is not loaded");
 
-            if (kind != TableKind.DB_COMMON || tableName != "PrestigeSkinTable")
+            if (kind != TableKind.DB_COMMON)
+                return new List<int>();
+
+            if (tableName == "CostumeTable")
+            {
+                var ids = new List<int>();
+                foreach (var row in Database.CostumeTableRows) ids.Add(row.Id);
+                return ids;
+            }
+
+            if (tableName != "PrestigeSkinTable")
                 return new List<int>();
 
             return new List<int>(Database.DesignIds);
+        }
+
+        public T GetValueObject<T>(TableKind kind, string tableName, int id) where T : class
+        {
+            if (kind != TableKind.DB_COMMON || tableName != "CostumeTable") return null;
+            foreach (var row in Database.CostumeTableRows)
+                if (row.Id == id) return row as T;
+            return null;
         }
     }
 
@@ -180,6 +205,8 @@ namespace FakeGame
             new Dictionary<int, PrestigeSkinTable>();
 
         public static List<int> DesignIds { get; } = new List<int>();
+
+        public static List<CostumeTable> CostumeTableRows { get; } = new List<CostumeTable>();
 
         /// <summary>设计表行 getter 每次被查询的 designId，用来证明 0 不会被拿去查表。</summary>
         public static List<int> TableRowLookupIds { get; } = new List<int>();

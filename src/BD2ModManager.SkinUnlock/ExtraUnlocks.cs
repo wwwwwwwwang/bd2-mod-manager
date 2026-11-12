@@ -137,12 +137,56 @@ namespace Suiren.BD2.SkinUnlock
             if (Patches.Active && DisableCensorship) __result = false;
         }
 
-        private static void SpineSetUI_Prefix(ref List<int> __1)
+        private static void SpineSetUI_Prefix(object __instance, ref List<int> __1)
         {
             if (!Patches.Active || !UnlockCovenantList) return;
             var ids = InteractionScenes.AllInteractionIds;
-            if (ids == null || ids.Count == 0) return;
-            __1 = new List<int>(ids);
+            if (ids != null && ids.Count > 0) __1 = new List<int>(ids);
+            TryInstantHint(__instance);
+        }
+
+        /// <summary>
+        /// 心契之约的「提示立即出现」只改 UI 控制器里的布尔/计数，不碰存档或服务器。
+        /// 目标字段名在部分版本会被混淆，所以按类型名 + 字段类型宽松匹配。
+        /// </summary>
+        private static void TryInstantHint(object ui)
+        {
+            if (ui == null) return;
+            var type = ui.GetType();
+            object hint = null;
+
+            try
+            {
+                foreach (var p in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    try
+                    {
+                        if (p.GetIndexParameters().Length != 0) continue;
+                        var pt = p.PropertyType;
+                        if (pt.Name.IndexOf("Hint", StringComparison.OrdinalIgnoreCase) < 0 &&
+                            p.Name.IndexOf("Hint", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                        hint = p.GetValue(ui, null);
+                        if (hint != null) break;
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
+            if (hint == null) return;
+            try
+            {
+                foreach (var f in hint.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    try
+                    {
+                        if (f.FieldType == typeof(bool)) f.SetValue(hint, true);
+                        else if (f.FieldType == typeof(int)) f.SetValue(hint, 0);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
         }
 
         private static void True_Postfix(ref bool __result)

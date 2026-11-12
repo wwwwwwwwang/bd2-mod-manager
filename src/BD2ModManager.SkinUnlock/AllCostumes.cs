@@ -43,8 +43,54 @@ namespace Suiren.BD2.SkinUnlock
             var level = r.CostumeType.GetProperty("Level");
             var inven = r.CostumeType.GetProperty("InvenIndex");
             var sort = r.CostumeType.GetProperty("SortId");
+            var useChar = r.CostumeType.GetProperty("UseChar");
 
             var added = 0;
+
+            // 优先用完整的 CostumeTable：它不仅包含带皮肤的服装，也包含只有大厅动画/
+            // 立绘的服装。表读不到时才回退到 SkinCatalog（旧行为）。
+            var rows = r.CostumeTableType != null
+                ? r.GetTableRows("CostumeTable", r.CostumeTableType)
+                : null;
+
+            if (rows != null && rows.Count > 0)
+            {
+                foreach (var row in rows)
+                {
+                    try
+                    {
+                        var type = row.GetType();
+                        var id = ReadInt(type, row, "Id");
+                        var designId = ReadInt(type, row, "DefaultCostumeDesignId");
+                        var charId = ReadInt(type, row, "UseUniqueCharId");
+                        if (id <= 0 || designId <= 0) continue;
+
+                        var key = Convert.ChangeType(id, keyType);
+                        if (dict.Contains(key) || Injected.Contains(id)) continue;
+
+                        var entry = Activator.CreateInstance(r.CostumeType);
+                        if (entry == null) continue;
+
+                        Set(r.CostumeId, entry, key);
+                        Set(r.CostumeDesignId, entry, designId);
+                        if (level != null) Set(level, entry, 1);
+                        if (inven != null) Set(inven, entry, 800000000L + id);
+                        if (sort != null) Set(sort, entry, 0);
+                        if (useChar != null && charId > 0) Set(useChar, entry, charId);
+
+                        dict[key] = entry;
+                        Injected.Add(id);
+                        added++;
+                    }
+                    catch
+                    {
+                        // 单件失败不影响其它服装
+                    }
+                }
+
+                return added;
+            }
+
             foreach (var costumeId in catalog.CostumeIds)
             {
                 try
@@ -107,6 +153,16 @@ namespace Suiren.BD2.SkinUnlock
                 if (args.Length == 2) return args[0];
             }
             return typeof(int);
+        }
+
+        private static int ReadInt(Type type, object row, string name)
+        {
+            try
+            {
+                var p = type.GetProperty(name);
+                return p == null ? 0 : Convert.ToInt32(p.GetValue(row, null));
+            }
+            catch { return 0; }
         }
 
         private static void Set(PropertyInfo p, object target, object value)

@@ -51,6 +51,10 @@ namespace Suiren.BD2.SkinUnlock
         internal MethodInfo GetTableRow;          // static (int) → TableType
         internal MethodInfo GetTableIds;          // RawDataManager.GetTableOfIds(enum, string)
         internal object DbCommon;
+        internal Type CostumeTableType;           // Proto.Design.common.CostumeTable
+        private object _rdmInstance;              // RawDataManager 单例
+        private MethodInfo _getValueObject;       // RawDataManager.GetValueObject<T>(enum, string, int)
+        private Type _getValueRowType;
 
         // ---- 服装上「查这个服装有哪些皮肤」 ----
         internal MethodInfo GetConnectedSkins;    // instance → List<PrestigeSkinDBInfo>
@@ -154,6 +158,10 @@ namespace Suiren.BD2.SkinUnlock
                 TableCostumeId = TableType.GetProperty("CostumeId");
                 if (TableId == null || TableCostumeId == null)
                     return Fail("PrestigeSkinTable 上缺少 Id / CostumeId");
+
+                // 全服装镜像要读完整的 CostumeTable；找不到时只影响高风险的「全服装」，
+                // 不影响皮肤主功能，所以这里不 Fail。
+                CostumeTableType = FindType("Proto.Design.common.CostumeTable", "CostumeTable");
 
                 Step = "皮肤表读取器";
                 GetTableRow = FindTableRowGetter();
@@ -852,6 +860,120 @@ namespace Suiren.BD2.SkinUnlock
             return total;
         }
         internal IDictionary GetItemDict() => SafeGet(ItemDict);
+
+        /// <summary>
+        /// 读取任意 DB_COMMON 表的完整行。RawDataManager.GetTableOfIds 只给 id，
+        /// 还要用 GetValueObject&lt;T&gt;(enum, string, int) 逐行取对象。
+        /// 表未就绪、方法签名不匹配时返回 null，由调用方决定是否回退。
+        /// </summary>
+        internal IList GetTableRows(string tableName, Type rowType)
+        {
+            if (GetTableIds == null || DbCommon == null || rowType == null) return null;
+
+            var rdm = GetRawDataManagerInstance();
+            if (rdm == null) return null;
+
+            IList ids;
+            try
+            {
+                ids = GetTableIds.Invoke(rdm, new object[] { DbCommon, tableName }) as IList;
+            }
+            catch { return null; }
+            if (ids == null || ids.Count == 0) return null;
+
+            var getter = ResolveValueObject(rowType);
+            if (getter == null) return null;
+
+            var rows = new List<object>(ids.Count);
+            foreach (var id in ids)
+            {
+                try
+                {
+                    var row = getter.Invoke(rdm, new object[] { DbCommon, tableName, Convert.ToInt32(id) });
+                    if (row != null) rows.Add(row);
+                }
+                catch { }
+            }
+            return rows;
+        }
+
+        private object GetRawDataManagerInstance()
+        {
+            if (_rdmInstance != null) return _rdmInstance;
+            if (GetTableIds == null) return null;
+
+            var rdmType = GetTableIds.DeclaringType;
+            if (rdmType == null) return null;
+
+            var self = rdmType;
+            while (self != null)
+            {
+                try
+                {
+                    foreach (var p in self.GetProperties(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                    {
+                        try
+                        {
+                            if (p.GetIndexParameters().Length != 0) continue;
+                            if (!rdmType.IsAssignableFrom(p.PropertyType)) continue;
+                            var v = p.GetValue(null, null);
+                            if (v != null) return _rdmInstance = v;
+                        }
+                        catch { }
+                    }
+
+                    foreach (var f in self.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                    {
+                        try
+                        {
+                            if (!rdmType.IsAssignableFrom(f.FieldType)) continue;
+                            var v = f.GetValue(null);
+                            if (v != null) return _rdmInstance = v;
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+
+                self = self.BaseType;
+            }
+            return null;
+        }
+
+        private MethodInfo ResolveValueObject(Type rowType)
+        {
+            if (_getValueObject != null && _getValueRowType == rowType) return _getValueObject;
+
+            var rdmType = GetTableIds?.DeclaringType;
+            if (rdmType == null) return null;
+
+            MethodInfo candidate = null;
+            try
+            {
+                foreach (var m in rdmType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    try
+                    {
+                        if (m.Name != "GetValueObject") continue;
+                        var ps = m.GetParameters();
+                        if (ps.Length != 3) continue;
+                        if (!ps[0].ParameterType.IsEnum || ps[1].ParameterType != typeof(string)) continue;
+                        if (ps[2].ParameterType != typeof(int)) continue;
+                        candidate = m;
+                        break;
+                    }
+                    catch { }
+                }
+
+                if (candidate != null && candidate.IsGenericMethodDefinition)
+                    candidate = candidate.MakeGenericMethod(rowType);
+            }
+            catch { candidate = null; }
+
+            _getValueObject = candidate;
+            _getValueRowType = rowType;
+            return candidate;
+        }
 
         /// <summary>
         /// 账号数据是否已经下发。登出后服装字典会被游戏清空，

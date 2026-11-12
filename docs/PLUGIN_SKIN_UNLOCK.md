@@ -21,7 +21,8 @@
 11. **大厅立绘映射**：把大厅立绘槽位指向当前选择的皮肤；也可以用 `Skins.LobbyDesignId` 强制指定 designId。默认开启，可用 `Skins.LobbyPortrait` 关闭。
 12. **心契之约实验开关**：`Interactions.UnlockCovenantList`（默认关）会替换 `SpineInteractionUI.SetUI` 的互动列表，并放行互动界面的 `Can/Interact/Unlock/Possible` 布尔门与约会服装谓词。不同游戏版本可能界面异常，建议先用默认配置。
 13. **恢复互动界面**：同一实验开关下，给 `SpineInteractionUI` 的 `(int,int)` 刷新方法挂 postfix，把原版关掉的互动工具栏、缩放条重新打开，并换一句操作提示；只操作 UI 对象，不写存档。
-14. **全服装本地镜像（高风险，默认关）**：把设计表里所有带皮肤的服装补进本地服装字典（`InvenIndex=800000000+`，套第一套皮肤设计），让未拥有的服装在本地列表出现；关闭开关会整批移除。只影响客户端显示，服务器仍认为未拥有，可能造成界面/数据不一致。
+14. **全服装本地镜像（高风险，默认关）**：读取完整 `CostumeTable`，把未拥有的服装补进本地服装字典（`InvenIndex=800000000+`，套该服装的默认设计），包括没有 PrestigeSkin 行、只有立绘/大厅动画的服装；关闭开关会整批移除。只影响客户端显示，服务器仍认为未拥有，可能造成界面/数据不一致。
+15. **心契提示立即出现**：心契之约实验开关开启时，把 `SpineInteractionUI` 上提示控制器的布尔字段置 true、计数置 0，让互动提示不再等待；只操作 UI 控制器，不写存档。
 
 ### 它不做什么
 
@@ -176,7 +177,7 @@ BepInEx/SkinUnlock.probe.log
 
 ## 五、验证到哪一步
 
-### 离线验证（106 项）
+### 离线验证（107 项）
 
 `tests/BD2ModManager.SkinUnlock.Tests` 用一套假游戏结构（`Proto.Net.CostumeDBInfo` / `Proto.Net.PrestigeSkinDBInfo` / `Proto.Design.common.PrestigeSkinTable` / `RawDataManager`，字段布局按真实客户端摆）把整条链路跑一遍：
 
@@ -206,7 +207,7 @@ log  补丁已挂上：查询服装皮肤 → CostumeDBInfo.GetConnectedPrestige
 log  补丁已挂上：切换皮肤 → Database.SetSkin
 log  补丁已挂上：互动解锁判定 → RawDataManager.CheckInteractionUnlock
 log  补丁已挂上：内容审查 → CensorshipManager.IsCensorship
-全部通过：106 项检查。
+全部通过：107 项检查。
 ```
 
 ### 真机验证
