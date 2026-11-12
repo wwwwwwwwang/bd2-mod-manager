@@ -249,7 +249,7 @@ GUI 的入口在「游戏位置」弹层底部（清理残留 / 功能模块 / �
 - **语义是注入 / 卸载，不是替换 / 还原**。除 `winhttp.dll` 是劫持入口外，BepInEx 全部是新增文件；游戏本体零改动。
 - **卸载禁止整目录删除**。只按清单删自己写过的东西；用户改过的保留。
 - **区分两条分发路径**：官网 `BD2StarterSetup.exe` 安装版可支持；Google Play Games 版（`BrownDust2 (GPG)`）结构不同，应识别并拒绝。BD2 不在 Steam。
-- **GUI 只保留一键开关**：没有 BepInEx 时，打开 = 安装 loader + 内置解锁插件；已有**完整** BepInEx 时，打开 = 只安装内置解锁插件，不覆盖现有 loader；如果 loader 不完整（例如只有 `winhttp.dll`、缺少 `BepInEx/core`），则视为需要修复，重新安装完整 loader 后再安装插件。
+- **GUI 主开关只负责启用/还原**：没有 BepInEx 时，打开 = 安装 loader + 内置解锁插件；已有**完整** BepInEx 时，打开 = 只安装内置解锁插件，不覆盖现有 loader；如果 loader 不完整（例如只有 `winhttp.dll`、缺少 `BepInEx/core`），则视为需要修复，重新安装完整 loader 后再安装插件。模块开关只影响插件行为，不改变安装范围。
 - **不做免杀**。无签名 exe 写 DLL 必被杀软误报，只能靠开源、不混淆、不上壳缓解；项目不承诺绕过安全软件。
 - **源码是唯一真相**。发布物由 CI 从源码构建；仓库不提交 65 MB 的自包含 exe。
 
@@ -259,8 +259,8 @@ GUI 的入口在「游戏位置」弹层底部（清理残留 / 功能模块 / �
 
 | 项目 | 覆盖 |
 |---|---|
-| `tests/BD2ModManager.Core.Tests` | 残留识别 / 清理、装完再卸、目录回收、组件安装 / 开关 / 移除、开关改名后旧路径失效 |
-| `tests/BD2ModManager.SkinUnlock.Tests` | 反射解析、设计表读取、注入、列表补全、点击拦截、选择回放、取消 / 回滚、撤销补丁、贴图超时兜底、默认皮肤拦截、大厅场景、救赎之塔镜像；85 项检查 |
+| `tests/BD2ModManager.Core.Tests` | 残留识别 / 清理、装完再卸、目录回收、组件安装 / 开关 / 移除、开关改名后旧路径失效、模块设置、诊断包脱敏、插件清单与 `ReplaceFile`；90 项检查 |
+| `tests/BD2ModManager.SkinUnlock.Tests` | 反射解析、设计表读取、注入、列表补全、点击拦截、选择回放、取消 / 回滚、撤销补丁、贴图超时兜底、默认皮肤拦截、大厅场景、救赎之塔镜像、互动扩展、完整 `CostumeTable` 全服装；107 项检查 |
 
 运行方式：
 
@@ -276,4 +276,4 @@ CI 在 GitHub Actions 的 Linux runner 上跑真实的 Harmony 挂载；Windows 
 - **加 CLI 命令**：在 `src/BD2ModManager.Cli/Program.cs` 的 `switch` 里加分派，逻辑落到 Core，不要在 CLI 里直接操作文件。
 - **加 GUI 卡片**：在 `MainWindow.axaml` 加布局，在 `MainViewModel` 加绑定属性与命令；耗时操作保持 `async` + `Dispatcher` 回 UI 线程。
 - **加包来源**：扩展 `LoaderPackage`，统一返回已解开的目录；`LoaderInstaller` 不需要知道来源是 zip 还是内嵌资源。
-- **改插件**：先读 [PLUGIN_SKIN_UNLOCK.md](PLUGIN_SKIN_UNLOCK.md)，再改 `src/BD2ModManager.SkinUnlock/`；改完必须跑 85 项离线验证。
+- **改插件**：先读 [PLUGIN_SKIN_UNLOCK.md](PLUGIN_SKIN_UNLOCK.md)，再改 `src/BD2ModManager.SkinUnlock/`；改完必须跑 107 项离线验证。
